@@ -20,12 +20,12 @@ INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Init(page_id_t page_id,
                                           page_id_t parent_id) {
     SetPageType(IndexPageType::INTERNAL_PAGE);
-    SetSize(0);
+    SetSize(1);
     SetPageId(page_id);
     SetParentPageId(parent_id);
     int size = (PAGE_SIZE - sizeof(BPlusTreeInternalPage))/
       (sizeof(KeyType) + sizeof(ValueType));
-    SetMaxSize(size-1);
+    SetMaxSize(size);
 }
 /*
  * Helper method to get/set the key associated with input "index"(a.k.a
@@ -49,7 +49,13 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetKeyAt(int index, const KeyType &key) {
  */
 INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueIndex(const ValueType &value) const {
-  return 0;
+    // The value is note sorted, can only use sequential scan
+    for(int i = 0; i < GetSize(); ++i){
+        if(array[i].second == value){
+            return i;
+        }
+    }
+    return GetSize();
 }
 
 /*
@@ -74,7 +80,24 @@ INDEX_TEMPLATE_ARGUMENTS
 ValueType
 B_PLUS_TREE_INTERNAL_PAGE_TYPE::Lookup(const KeyType &key,
                                        const KeyComparator &comparator) const {
-  return INVALID_PAGE_ID;
+    assert(GetSize() > 1);
+    if (comparator(key, array[1].first) < 0) {
+        return array[0].second;
+    } else if (comparator(key, array[GetSize() - 1].first) >= 0) {
+        return array[GetSize() - 1].second;
+    }
+
+    int low = 1, high = GetSize(), mid = 0;
+    while(low != high){
+        mid = (low + high) / 2;
+        if(comparator(key, array[mid].first) > 0){
+            // key larger then mid
+            low = mid + 1;
+        }else{
+            high = mid;
+        }
+    }
+    return array[low-1].second;
 }
 
 /*****************************************************************************
@@ -89,7 +112,11 @@ B_PLUS_TREE_INTERNAL_PAGE_TYPE::Lookup(const KeyType &key,
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::PopulateNewRoot(
     const ValueType &old_value, const KeyType &new_key,
-    const ValueType &new_value) {}
+    const ValueType &new_value) {
+    array[0].second = old_value;
+    array[1] = std::make_pair(new_key, new_value);
+    IncreaseSize(1);
+}
 /*
  * Insert new_key & new_value pair right after the pair with its value ==
  * old_value
@@ -99,7 +126,14 @@ INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertNodeAfter(
     const ValueType &old_value, const KeyType &new_key,
     const ValueType &new_value) {
-  return 0;
+    // Add code here
+    int size = GetSize();
+    assert(size < max_size_);
+    int value_index = ValueIndex(old_value);
+    memmove(array+value_index+2, array+value_index+1, (size_t)size*sizeof(MappingType));
+    array[value_index+1] = std::make_pair(new_key, new_value);
+    IncreaseSize(1);
+    return size + 1;
 }
 
 /*****************************************************************************
@@ -111,11 +145,30 @@ int B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertNodeAfter(
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(
     BPlusTreeInternalPage *recipient,
-    BufferPoolManager *buffer_pool_manager) {}
+    BufferPoolManager *buffer_pool_manager) {
+    // Move the right half part to the recipient
+    int size = GetSize() / 2;
+    recipient->CopyHalfFrom(array+GetSize()-size, size, buffer_pool_manager);
+    IncreaseSize(-1*size);
+    //Update the parent page id for right child
+    for(int i = GetSize() - size; i < GetSize(); ++i){
+        auto child_page = buffer_pool_manager->FetchPage(array[i].second);
+        assert(child_page != nullptr);
+        auto child_node = reinterpret_cast<BPlusTreePage *>(child_page->GetData());
+        child_node->SetParentPageId(recipient->GetPageId());
+        buffer_pool_manager->UnpinPage(child->GetPageId(), true);
+    }
+}
 
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyHalfFrom(
-    MappingType *items, int size, BufferPoolManager *buffer_pool_manager) {}
+    MappingType *items, int size, BufferPoolManager *buffer_pool_manager) {
+    //
+    int current_size = GetSize();
+    assert(current_size == 1);
+    memcpy(array+1, items, (size_t)size*sizeof(MappingType));
+    IncreaseSize(size);
+}
 
 /*****************************************************************************
  * REMOVE
@@ -126,7 +179,12 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyHalfFrom(
  * NOTE: store key&value pair continuously after deletion
  */
 INDEX_TEMPLATE_ARGUMENTS
-void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Remove(int index) {}
+void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Remove(int index) {
+    int size = GetSize();
+    assert(size > 1);
+    memmove(index, index+1, (size_t)((size-index-1)*sizeof(MappingType)));
+    IncreaseSize(-1);
+}
 
 /*
  * Remove the only key & value pair in internal page and return the value
@@ -134,7 +192,9 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Remove(int index) {}
  */
 INDEX_TEMPLATE_ARGUMENTS
 ValueType B_PLUS_TREE_INTERNAL_PAGE_TYPE::RemoveAndReturnOnlyChild() {
-  return INVALID_PAGE_ID;
+    int size = GetSize();
+    assert(size == 2);
+    return array[1].second;
 }
 /*****************************************************************************
  * MERGE
@@ -146,11 +206,26 @@ ValueType B_PLUS_TREE_INTERNAL_PAGE_TYPE::RemoveAndReturnOnlyChild() {
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(
     BPlusTreeInternalPage *recipient, int index_in_parent,
-    BufferPoolManager *buffer_pool_manager) {}
+    BufferPoolManager *buffer_pool_manager) {
+    //
+    assert(recipient->GetParentPageId() == GetParentPageId());
+    int size = GetSize();
+    recipient->CopyAllFrom(array+1, size-1, buffer_pool_manager);
+    // Update the data in parent page
+    auto parent_page = buffer_pool_manager->FetchPage(GetParentPageId());
+    auto parent_node = reinterpret_cast<BPlusTreeInternalPage *>(parent_page->GetData());
+    
+}
 
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyAllFrom(
-    MappingType *items, int size, BufferPoolManager *buffer_pool_manager) {}
+    MappingType *items, int size, BufferPoolManager *buffer_pool_manager) {
+    //
+    int current_size = GetSize();
+    assert(current_size + size <= max_size_);
+    memcpy(array+current_size, items, (size_t)size*sizeof(MappingType));
+    IncreaseSize(size);
+}
 
 /*****************************************************************************
  * REDISTRIBUTE
