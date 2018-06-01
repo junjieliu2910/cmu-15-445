@@ -214,7 +214,10 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(
     // Update the data in parent page
     auto parent_page = buffer_pool_manager->FetchPage(GetParentPageId());
     auto parent_node = reinterpret_cast<BPlusTreeInternalPage *>(parent_page->GetData());
-    
+    // NOTE: Not finish here
+
+
+
 }
 
 INDEX_TEMPLATE_ARGUMENTS
@@ -237,11 +240,16 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyAllFrom(
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveFirstToEndOf(
     BPlusTreeInternalPage *recipient,
-    BufferPoolManager *buffer_pool_manager) {}
+    BufferPoolManager *buffer_pool_manager) {
+    //
+
+}
 
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyLastFrom(
-    const MappingType &pair, BufferPoolManager *buffer_pool_manager) {}
+    const MappingType &pair, BufferPoolManager *buffer_pool_manager) {
+
+}
 
 /*
  * Remove the last key & value pair from this page to head of "recipient"
