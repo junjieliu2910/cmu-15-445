@@ -24,7 +24,9 @@ BPLUSTREE_TYPE::BPlusTree(const std::string &name,
  * Helper function to decide whether current b+tree is empty
  */
 INDEX_TEMPLATE_ARGUMENTS
-bool BPLUSTREE_TYPE::IsEmpty() const { return true; }
+bool BPLUSTREE_TYPE::IsEmpty() const {
+    return root_page_id_ == INVALID_PAGE_ID;
+}
 /*****************************************************************************
  * SEARCH
  *****************************************************************************/
@@ -37,7 +39,25 @@ INDEX_TEMPLATE_ARGUMENTS
 bool BPLUSTREE_TYPE::GetValue(const KeyType &key,
                               std::vector<ValueType> &result,
                               Transaction *transaction) {
-  return false;
+    //
+    if(IsEmpty()) return false;
+    auto page = buffer_pool_manager_.FetchPage(root_page_id_);
+    auto node = reinterpret_cast<BPlusTreePage *>(page->GetData());
+    while(!node->IsLeafPage()){
+        auto internal = reinterpret_cast<BPlusTreeInternalPage *>(node);
+        ValueType child_page_id = internal->Lookup(key, comparator_);
+        page = buffer_pool_manager_->FetchPage(child_page_id);
+        node = reinterpret_cast<BPlusTreePage *>(page->GetData());
+    }
+    // Now node is leaf page
+    auto leaf = reinterpret_cast<BPlusTreeLeafPage *>(node);
+    ValueType tmp;
+    if(leaf->Lookup(key, tmp, comparator_)){
+        result.push_back(tmp);
+        return true;
+    }else{
+        return false;
+    }
 }
 
 /*****************************************************************************
@@ -53,7 +73,9 @@ bool BPLUSTREE_TYPE::GetValue(const KeyType &key,
 INDEX_TEMPLATE_ARGUMENTS
 bool BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value,
                             Transaction *transaction) {
-  return false;
+    //
+    if(IsEmpty()) StartNewTree(key, value);
+
 }
 /*
  * Insert constant key & value pair into an empty tree
@@ -62,7 +84,13 @@ bool BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value,
  * tree's root page id and insert entry directly into leaf page.
  */
 INDEX_TEMPLATE_ARGUMENTS
-void BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {}
+void BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {
+    page_id_t page_id;
+    auto page = buffer_pool_manager_->NewPage(page_id);
+    if(page == nullptr){
+
+    }
+}
 
 /*
  * Insert constant key & value pair into leaf page
