@@ -125,6 +125,7 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveHalfTo(
     __attribute__((unused)) BufferPoolManager *buffer_pool_manager) {
     // add here
     int size = GetSize()/2;
+    // Move the right half to the recipient
     MappingType *src = array + GetSize() - size;
     recipient->CopyHalfFrom(src, size);
     IncreaseSize(-1*size);
