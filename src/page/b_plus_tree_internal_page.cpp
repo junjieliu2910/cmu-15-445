@@ -128,7 +128,7 @@ int B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertNodeAfter(
     const ValueType &new_value) {
     // Add code here
     int size = GetSize();
-    assert(size < max_size_);
+    assert(size < GetMaxSize());
     int value_index = ValueIndex(old_value);
     memmove(array+value_index+2, array+value_index+1, (size_t)size*sizeof(MappingType));
     array[value_index+1] = std::make_pair(new_key, new_value);
@@ -156,7 +156,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(
         assert(child_page != nullptr);
         auto child_node = reinterpret_cast<BPlusTreePage *>(child_page->GetData());
         child_node->SetParentPageId(recipient->GetPageId());
-        buffer_pool_manager->UnpinPage(child->GetPageId(), true);
+        buffer_pool_manager->UnpinPage(child_node->GetPageId(), true);
     }
 }
 
@@ -182,7 +182,7 @@ INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Remove(int index) {
     int size = GetSize();
     assert(size > 1);
-    memmove(index, index+1, (size_t)((size-index-1)*sizeof(MappingType)));
+    memmove(array+index, array+index+1, (size_t)((size-index-1)*sizeof(MappingType)));
     IncreaseSize(-1);
 }
 
@@ -216,7 +216,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(
     // NOTE: Not finish here
     // Need to change the relaven key value in parent page
     SetKeyAt(0, parent_node->KeyAt(index_in_parent));
-    buffer_pool_manager->UnpinPage(parent_node->GetPageId());
+    buffer_pool_manager->UnpinPage(parent_node->GetPageId(), true);
     recipient->CopyAllFrom(array, size, buffer_pool_manager);
 
     // Update the parent page id of the child
@@ -235,7 +235,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyAllFrom(
     MappingType *items, int size, BufferPoolManager *buffer_pool_manager) {
     //
     int current_size = GetSize();
-    assert(current_size + size <= max_size_);
+    assert(current_size + size <= GetMaxSize());
     memcpy(array+current_size, items, (size_t)size*sizeof(MappingType));
     IncreaseSize(size);
 }
@@ -256,7 +256,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveFirstToEndOf(
     assert(size > GetMinSize());
     //Construct the pair
     auto page = buffer_pool_manager->FetchPage(GetParentPageId());
-    parent = reinterpret_cast<BPlusTreeInternalPage *>(page->GetData());
+    auto parent = reinterpret_cast<BPlusTreeInternalPage *>(page->GetData());
     int parent_index = parent->ValueIndex(array[0].second);
     recipient->CopyLastFrom(std::make_pair(parent->KeyAt(parent_index), array[0].second), buffer_pool_manager);
     //Change parent page
@@ -277,7 +277,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyLastFrom(
     // Change state in child page
     auto child_page = buffer_pool_manager->FetchPage(pair.second);
     auto child_node = reinterpret_cast<BPlusTreePage *>(child_page->GetData());
-    child_node->SetParentPageId(GetPageId);
+    child_node->SetParentPageId(GetPageId());
     buffer_pool_manager->UnpinPage(child_node->GetPageId(), true);
 }
 

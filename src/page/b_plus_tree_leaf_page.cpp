@@ -7,6 +7,7 @@
 #include "common/exception.h"
 #include "common/rid.h"
 #include "page/b_plus_tree_leaf_page.h"
+#include "page/b_plus_tree_internal_page.h"
 
 namespace cmudb {
 
@@ -97,7 +98,7 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType &key,
                                        const KeyComparator &comparator) {
     // Do not need to split here
     int size = GetSize();
-    assert(size < max_size_);
+    assert(size < GetMaxSize());
     // bigger than the last one
     if(size == 0 || comparator(key, array[size-1].first) > 0){
         array[size] = std::make_pair(key, value);
@@ -106,7 +107,7 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType &key,
         array[0] = std::make_pair(key, value);
     }
     // in the middle of array
-    int proper_index = KeyIndex(key);
+    int proper_index = KeyIndex(key, comparator);
     memmove(array + proper_index + 1, array + proper_index, static_cast<size_t>((GetSize() - proper_index)*sizeof(MappingType)));
     array[proper_index] = std::make_pair(key, value);
     IncreaseSize(1);
@@ -179,7 +180,7 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::RemoveAndDeleteRecord(
     }
     int key_index = KeyIndex(key, comparator);
     if(comparator(key, KeyAt(key_index)) == 0){
-        memmove(array+key_index, array+key_index+1, static_cast<size_t>((GetSize() - mid - 1)*sizeof(MappingType)));
+        memmove(array+key_index, array+key_index+1, (size_t)((GetSize() - key_index - 1)*sizeof(MappingType)));
         IncreaseSize(-1);
         size --;
     }
@@ -204,7 +205,7 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveAllTo(BPlusTreeLeafPage *recipient,
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyAllFrom(MappingType *items, int size) {
     int current_size = GetSize();
-    assert(current_size + size <= max_size_);
+    assert(current_size + size <= GetMaxSize());
     memcpy(array + current_size, items, static_cast<size_t>(size*sizeof(MappingType)));
 }
 
@@ -222,16 +223,16 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveFirstToEndOf(
     //
     recipient->CopyLastFrom(array[0]);
     memmove(array, array + 1, static_cast<size_t>(GetSize()*sizeof(MappingType)));
+    IncreaseSize(-1);
 
     auto *page = buffer_pool_manager -> FetchPage(GetParentPageId());
     if (page == nullptr) {
         throw Exception(EXCEPTION_TYPE_INDEX,
                    "all page are pinned while MoveFirstToEndOf");
     }
-    auto parent_node = reinterpret_cast<BPlusTreeInternalPage<KeyType, decltype(GetPageId()),
-                                             KeyComparator> *>(page->GetData());
+    auto parent_node = reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE *>(page->GetData());
     // Doubt here
-    parent->SetKeyAt(parent->ValueIndex(GetPageId()), pair.first);
+    parent_node->SetKeyAt(parent_node->ValueIndex(GetPageId()), array[0].first);
 
     buffer_pool_manager->UnpinPage(GetParentPageId(), true);
 }
@@ -239,7 +240,7 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveFirstToEndOf(
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyLastFrom(const MappingType &item) {
     int size = GetSize();
-    assert(size < max_size_);
+    assert(size < GetMaxSize());
     array[size] = item;
     IncreaseSize(1);
 }
@@ -251,7 +252,11 @@ INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveLastToFrontOf(
     BPlusTreeLeafPage *recipient, int parentIndex,
     BufferPoolManager *buffer_pool_manager) {
-
+    //
+    int size = GetSize();
+    assert(size > GetMinSize());
+    recipient->CopyFirstFrom(array[size-1], parentIndex, buffer_pool_manager);
+    IncreaseSize(-1);
 }
 
 INDEX_TEMPLATE_ARGUMENTS
@@ -259,10 +264,18 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyFirstFrom(
     const MappingType &item, int parentIndex,
     BufferPoolManager *buffer_pool_manager) {
     int size = GetSize();
-    assert(size < max_size_);
+    assert(size < GetMaxSize());
     memmove(array + 1, array, size*sizeof(MappingType));
     array[0] = item;
     IncreaseSize(1);
+    //Update parent page 
+    auto page = buffer_pool_manager->FetchPage(GetParentPageId());
+    if(page==nullptr){
+        throw Exception(EXCEPTION_TYPE_INDEX, "parent page not found when CopyFirstFrom");
+    }
+    auto parent = reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE *>(page->GetData());
+    parent->SetKeyAt(parentIndex, array[0].first);
+    buffer_pool_manager->UnpinPage(parent->GetPageId(), true);
 }
 
 /*****************************************************************************

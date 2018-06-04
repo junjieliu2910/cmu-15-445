@@ -147,7 +147,7 @@ template <typename N> N *BPLUSTREE_TYPE::Split(N *node) {
     if(new_page == nullptr){
         throw Exception(EXCEPTION_TYPE_INDEX, "Out of memory");
     }
-    auto new_node = reinterpret_cast<N *>(new_page->GetData());
+    N* new_node = reinterpret_cast<N *>(new_page->GetData());
     new_node->Init(new_page_id);
     node->MoveHalfTo(new_node, buffer_pool_manager_);
     return new_node;
@@ -167,16 +167,50 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node,
                                       const KeyType &key,
                                       BPlusTreePage *new_node,
                                       Transaction *transaction) {
-    //If the old node is the root node
     if(old_node->IsRootPage()){
-        page_id_t page_id;
-        auto page = buffer_pool_manager_->NewPage(page_id);
+        //If the old node is the root node
+        auto page = buffer_pool_manager_->NewPage(root_page_id_);
         if(page == nullptr){
             throw Exception(EXCEPTION_TYPE_INDEX, "Out of memory");
         }
         B_PLUS_TREE_INTERNAL_PAGE_TYPE* new_root = reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE *>(page->GetData());
-        new_root->init(page_id);
-        
+        // generate new root
+        new_root->Init(root_page_id_);
+        new_root->PopulateNewRoot(old_node->GetPageId(), key, new_node->GetPageId());
+        // Update the children page 
+        old_node->SetParentPageId(root_page_id_);
+        new_node->SetParentPageId(root_page_id_);
+        // Update root page id instead of inserting new root 
+        UpdateRootPageId(false);
+        // Unpin pages 
+        buffer_pool_manager_->UnpinPage(old_node->GetPageId(), true);
+        buffer_pool_manager_->UnpinPage(new_node->GetPageId(), true);
+        buffer_pool_mamager_->UnpinPage(root_page_id_, true);
+    }else{
+        //The node is not the root node 
+        auto page = buffer_pool_manager_->FetchPage(old_node->GetParentPageId());
+        if(page==nullptr){
+            throw Exception(EXCEPTION_TYPE_INDEX, "Out of memory");
+        }
+        B_PLUS_TREE_INTERNAL_PAGE_TYPE *parent = reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE *>(page->GetData());
+        if(parent->GetSize() < parent->GetMaxSize()){
+            //Parent page is not full 
+            parent->InsertNodeAfter(old_node->GetPageId(), key, new_node->GetPageId());
+            new_node->SetParentPageId(parent->GetPageId());
+
+            buffer_pool_manager_->UnpinPage(new_node->GetPageId(), true);
+            buffer_pool_manager_->UnpinPage(old_node->GetPageId(), true);
+            buffer_pool_manager_->UnpinPage(parent->GetPageId(), true);
+        }else{
+            //Parent page is full, split parent page 
+            B_PLUS_TREE_INTERNAL_PAGE_TYPE* new_internal = Split(parent);
+            new_internal->SetParentPageId(parent->GetParentPageId());
+            KeyType mid_one = new_internal->KeyAt(0);
+
+            buffer_pool_manager_->UnpinPage(new_node->GetPageId(), true);
+            buffer_pool_manager_->UnpinPage(old_node->GetPageId(), true);
+            parent->InsertIntoParent(parent, mid_one, new_internal);
+        }
     }
 }
 
