@@ -45,8 +45,10 @@ bool BPLUSTREE_TYPE::GetValue(const KeyType &key,
     ValueType tmp;
     if(leaf->Lookup(key, tmp, comparator_)){
         result.push_back(tmp);
+        buffer_pool_manager_->UnpinPage(leaf->GetPageId());
         return true;
     }else{
+        buffer_pool_manager_->UnpinPage(leaf->GetPageId());
         return false;
     }
 }
@@ -225,7 +227,23 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node,
  * necessary.
  */
 INDEX_TEMPLATE_ARGUMENTS
-void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {}
+void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
+    B_PLUS_TREE_LEAF_PAGE_TYPE* leaf = FindLeafPage(key, false);
+    if(leaf==nullptr){
+        // The tree is empty 
+        return;
+    }
+    int size = GetSize();
+    int size_after_deletion = leaf->RemoveAndDeleteRecord(key, comparator_);
+    if(size==size_after_deletion){
+        //Key not found
+        return;
+    }
+    //Key found and delete 
+    if(size_after_deletion < leaf->GetMinSize()){
+        CoalesceOrRedistribute(leaf, transaction);
+    }
+}
 
 /*
  * User needs to first find the sibling of input page. If sibling's size + input
@@ -237,7 +255,9 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {}
 INDEX_TEMPLATE_ARGUMENTS
 template <typename N>
 bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
-  return false;
+    // Choose neighboor child 
+    auto page = buffer_pool_manager_->FetchPage(node->GetParentPageId());
+    
 }
 
 /*
@@ -272,7 +292,9 @@ bool BPLUSTREE_TYPE::Coalesce(
  */
 INDEX_TEMPLATE_ARGUMENTS
 template <typename N>
-void BPLUSTREE_TYPE::Redistribute(N *neighbor_node, N *node, int index) {}
+void BPLUSTREE_TYPE::Redistribute(N *neighbor_node, N *node, int index) {
+
+}
 /*
  * Update root page if necessary
  * NOTE: size of root page can be less than min size and this method is only
@@ -320,7 +342,7 @@ INDEX_TEMPLATE_ARGUMENTS
 B_PLUS_TREE_LEAF_PAGE_TYPE *BPLUSTREE_TYPE::FindLeafPage(const KeyType &key,
                                                          bool leftMost) {
     // Check empty
-    if(IsEmpty()) return false;
+    if(IsEmpty()) return nullptr;
     auto page = buffer_pool_manager_.FetchPage(root_page_id_);
     auto node = reinterpret_cast<BPlusTreePage *>(page->GetData());
 
