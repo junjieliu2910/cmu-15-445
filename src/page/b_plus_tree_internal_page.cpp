@@ -214,7 +214,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(
     auto parent_page = buffer_pool_manager->FetchPage(GetParentPageId());
     auto parent_node = reinterpret_cast<BPlusTreeInternalPage *>(parent_page->GetData());
     // NOTE: Not finish here
-    // Need to change the relaven key value in parent page
+    // Need to change the related key value in parent page
     SetKeyAt(0, parent_node->KeyAt(index_in_parent));
     buffer_pool_manager->UnpinPage(parent_node->GetPageId(), true);
     recipient->CopyAllFrom(array, size, buffer_pool_manager);

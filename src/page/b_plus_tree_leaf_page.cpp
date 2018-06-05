@@ -197,13 +197,14 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::RemoveAndDeleteRecord(
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveAllTo(BPlusTreeLeafPage *recipient,
                                            int, BufferPoolManager *) {
-    // Why need this function ????
+    //Move to left
     recipient->CopyAllFrom(array, GetSize());
     recipient->SetNextPageId(GetNextPageId());
 }
 
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyAllFrom(MappingType *items, int size) {
+    //Copy from right 
     int current_size = GetSize();
     assert(current_size + size <= GetMaxSize());
     memcpy(array + current_size, items, static_cast<size_t>(size*sizeof(MappingType)));
