@@ -82,23 +82,18 @@ ValueType
 B_PLUS_TREE_INTERNAL_PAGE_TYPE::Lookup(const KeyType &key,
                                        const KeyComparator &comparator) const {
     //assert(GetSize() > 1);
-    if (comparator(key, array[1].first) < 0) {
+    if(comparator(key, array[1].first) < 0){
         return array[0].second;
-    } else if (comparator(key, array[GetSize() - 1].first) >= 0) {
-        return array[GetSize() - 1].second;
+    }else if(comparator(key, array[GetSize()-1].first) > 0){
+        return array[GetSize()-1].second;
     }
 
-    int low = 1, high = GetSize(), mid = 0;
-    while(low != high){
-        mid = (low + high) / 2;
-        if(comparator(key, array[mid].first) > 0){
-            // key larger then mid
-            low = mid + 1;
-        }else{
-            high = mid;
+    for(int i = 1; i < GetSize(); ++i){
+        if(comparator(key, array[i].first) <= 0){
+            return array[i-1].second;
         }
     }
-    return array[low-1].second;
+    return array[GetSize()-1].second;
 }
 
 /*****************************************************************************
