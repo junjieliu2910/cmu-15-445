@@ -16,7 +16,7 @@ bool BPlusTreePage::IsRootPage() const {
     return parent_page_id_ == INVALID_PAGE_ID;
 }
 void BPlusTreePage::SetPageType(IndexPageType page_type) {
-    page_type = page_type;
+    page_type_ = page_type;
 }
 
 /*

@@ -5,6 +5,7 @@
 #include <sstream>
 
 #include "common/exception.h"
+#include "common/logger.h"
 #include "common/rid.h"
 #include "page/b_plus_tree_leaf_page.h"
 #include "page/b_plus_tree_internal_page.h"
@@ -52,17 +53,17 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::SetNextPageId(page_id_t next_page_id) {
 INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_LEAF_PAGE_TYPE::KeyIndex(
     const KeyType &key, const KeyComparator &comparator) const {
-    int low = 0, high = GetSize(), mid = 0;
-    while(low != high){
-        mid = (low + high) / 2;
-        if(comparator(key, array[mid].first) > 0){
-            // key larger then mid
-            low = mid + 1;
+    int len = GetSize();
+    int begin = 0, end = len;
+    while(begin < end){
+        int mid = (begin + end) /2 ;
+        if(comparator(array[mid].first, key) == -1){
+            begin = mid + 1;
         }else{
-            high = mid;
+            end = mid;
         }
     }
-    return low;
+    return begin;
 }
 
 /*
@@ -72,6 +73,7 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::KeyIndex(
 INDEX_TEMPLATE_ARGUMENTS
 KeyType B_PLUS_TREE_LEAF_PAGE_TYPE::KeyAt(int index) const {
   // replace with your own code
+    assert(index >=0 && index < GetSize());
     return array[index].first;
 }
 
@@ -98,20 +100,25 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType &key,
                                        const KeyComparator &comparator) {
     // Do not need to split here
     int size = GetSize();
-    assert(size < GetMaxSize());
+    assert(size <= GetMaxSize());
     // bigger than the last one
     if(size == 0 || comparator(key, array[size-1].first) > 0){
         array[size] = std::make_pair(key, value);
+        IncreaseSize(1);
+        return size + 1;
     }else if(comparator(key, array[0].first) < 0){
         memmove(array + 1, array, static_cast<size_t>(GetSize()*sizeof(MappingType)));
         array[0] = std::make_pair(key, value);
+        IncreaseSize(1);
+        return size+1;
+    }else{ 
+        // in the middle of array
+        int proper_index = KeyIndex(key, comparator);
+        memmove(array + proper_index + 1, array + proper_index, static_cast<size_t>((GetSize() - proper_index)*sizeof(MappingType)));
+        array[proper_index] = std::make_pair(key, value);
+        IncreaseSize(1);
+        return size + 1;
     }
-    // in the middle of array
-    int proper_index = KeyIndex(key, comparator);
-    memmove(array + proper_index + 1, array + proper_index, static_cast<size_t>((GetSize() - proper_index)*sizeof(MappingType)));
-    array[proper_index] = std::make_pair(key, value);
-    IncreaseSize(1);
-    return size + 1;
 }
 
 /*****************************************************************************
@@ -136,6 +143,7 @@ INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyHalfFrom(MappingType *items, int size) {
     assert(GetSize() == 0);
     memcpy(array, items, static_cast<size_t>(size*sizeof(MappingType)));
+    IncreaseSize(size);
 }
 
 /*****************************************************************************
@@ -154,7 +162,7 @@ bool B_PLUS_TREE_LEAF_PAGE_TYPE::Lookup(const KeyType &key, ValueType &value,
         return false;
     }
     int key_index = KeyIndex(key, comparator);
-    if(comparator(key, KeyAt(key_index)) == 0){
+    if(comparator(array[key_index].first, key)==0){
         value = array[key_index].second;
         return true;
     }
@@ -231,7 +239,8 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveFirstToEndOf(
         throw Exception(EXCEPTION_TYPE_INDEX,
                    "all page are pinned while MoveFirstToEndOf");
     }
-    auto parent_node = reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE *>(page->GetData());
+    auto parent_node = reinterpret_cast<BPlusTreeInternalPage<KeyType, page_id_t,
+                                               KeyComparator> *>(page->GetData());
     // Doubt here
     parent_node->SetKeyAt(parent_node->ValueIndex(GetPageId()), array[0].first);
 
@@ -274,9 +283,10 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyFirstFrom(
     if(page==nullptr){
         throw Exception(EXCEPTION_TYPE_INDEX, "parent page not found when CopyFirstFrom");
     }
-    auto parent = reinterpret_cast<B_PLUS_TREE_INTERNAL_PAGE_TYPE *>(page->GetData());
+    auto parent = reinterpret_cast<BPlusTreeInternalPage<KeyType, page_id_t,
+                                               KeyComparator> *>(page->GetData());
     parent->SetKeyAt(parentIndex, array[0].first);
-    buffer_pool_manager->UnpinPage(parent->GetPageId(), true);
+    buffer_pool_manager->UnpinPage(page->GetPageId(), true);
 }
 
 /*****************************************************************************

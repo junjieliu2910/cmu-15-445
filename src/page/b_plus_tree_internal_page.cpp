@@ -5,6 +5,7 @@
 #include <sstream>
 
 #include "common/exception.h"
+#include "common/logger.h"
 #include "page/b_plus_tree_internal_page.h"
 
 namespace cmudb {
@@ -80,7 +81,7 @@ INDEX_TEMPLATE_ARGUMENTS
 ValueType
 B_PLUS_TREE_INTERNAL_PAGE_TYPE::Lookup(const KeyType &key,
                                        const KeyComparator &comparator) const {
-    assert(GetSize() > 1);
+    //assert(GetSize() > 1);
     if (comparator(key, array[1].first) < 0) {
         return array[0].second;
     } else if (comparator(key, array[GetSize() - 1].first) >= 0) {
@@ -156,7 +157,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(
         assert(child_page != nullptr);
         auto child_node = reinterpret_cast<BPlusTreePage *>(child_page->GetData());
         child_node->SetParentPageId(recipient->GetPageId());
-        buffer_pool_manager->UnpinPage(child_node->GetPageId(), true);
+        buffer_pool_manager->UnpinPage(child_page->GetPageId(), true);
     }
 }
 
@@ -216,7 +217,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(
     // NOTE: Not finish here
     // Need to change the related key value in parent page
     SetKeyAt(0, parent_node->KeyAt(index_in_parent));
-    buffer_pool_manager->UnpinPage(parent_node->GetPageId(), true);
+    buffer_pool_manager->UnpinPage(parent_page->GetPageId(), true);
     recipient->CopyAllFrom(array, size, buffer_pool_manager);
 
     // Update the parent page id of the child
@@ -225,7 +226,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(
         assert(page != nullptr);
         auto node = reinterpret_cast<BPlusTreePage *>(page->GetData());
         node->SetParentPageId(recipient->GetPageId());
-        buffer_pool_manager->UnpinPage(node->GetPageId(), true);
+        buffer_pool_manager->UnpinPage(page->GetPageId(), true);
     }
 
 }
@@ -278,7 +279,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyLastFrom(
     auto child_page = buffer_pool_manager->FetchPage(pair.second);
     auto child_node = reinterpret_cast<BPlusTreePage *>(child_page->GetData());
     child_node->SetParentPageId(GetPageId());
-    buffer_pool_manager->UnpinPage(child_node->GetPageId(), true);
+    buffer_pool_manager->UnpinPage(child_page->GetPageId(), true);
 }
 
 /*
