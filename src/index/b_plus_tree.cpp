@@ -236,29 +236,25 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node,
         
         assert(page->GetPinCount() == 1);
         if(parent->GetSize() < parent->GetMaxSize()){
-            //Parent page is not full 
-            // if(old_node->GetPageId() == 31){
-            //     auto a = old_node->GetPageId(), b = new_node->GetPageId(), c=parent->GetPageId();
-            //     LOG_INFO("old node: %d, new node: %d, parent node:%d", old_node->GetPageId(), new_node->GetPageId(), parent->GetPageId());
-            //     buffer_pool_manager_->UnpinPage(new_node->GetPageId(), true); 
-            //     buffer_pool_manager_->UnpinPage(old_node->GetPageId(), true);
-            //     buffer_pool_manager_->UnpinPage(parent->GetPageId(), true);
-            //     auto test1 = buffer_pool_manager_->FetchPage(a);
-            //     auto test2 = buffer_pool_manager_->FetchPage(b);
-            //     auto test3 = buffer_pool_manager_->FetchPage(c);
-            //     LOG_INFO("old node: %d, new node: %d, parent node:%d", test1->GetPageId(), test2->GetPageId(), test3->GetPageId());
-            //     LOG_INFO("Pin count: old node: %d, new node: %d, parent node:%d", test1->GetPinCount(), test2->GetPinCount(), test3->GetPinCount());
-            //     parent->InsertNodeAfter(a, key, b);
-            //     buffer_pool_manager_->UnpinPage(a, true); 
-            //     buffer_pool_manager_->UnpinPage(b, true);
-            //     buffer_pool_manager_->UnpinPage(c, true);
-            //     return;
-            // }
+            
             parent->InsertNodeAfter(old_node->GetPageId(), key, new_node->GetPageId());
             LOG_INFO("old node: %d, new node: %d, parent node:%d", old_node->GetPageId(), new_node->GetPageId(), parent->GetPageId());
-            buffer_pool_manager_->UnpinPage(parent->GetPageId(), true);
+            //debug
+            auto debug = parent->GetPageId(), old_one = old_node->GetPageId();
+            if(old_one==21){
+                LOG_INFO("1. The debug page id: %d", parent->GetPageId());
+            } 
+            //
+            assert(buffer_pool_manager_->UnpinPage(parent->GetPageId(), true));
             buffer_pool_manager_->UnpinPage(new_node->GetPageId(), true); 
             buffer_pool_manager_->UnpinPage(old_node->GetPageId(), true);
+
+            //debug 
+            if(old_one==21){
+                auto page = buffer_pool_manager_->FetchPage(debug);
+
+                LOG_INFO("2. The debug page id: %d", page->GetPageId());
+            } 
             
         }else{
             //Parent page is full, split parent page 

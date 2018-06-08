@@ -1,4 +1,5 @@
 #include "buffer/buffer_pool_manager.h"
+#include "common/logger.h"
 
 namespace cmudb {
 
@@ -55,6 +56,9 @@ Page *BufferPoolManager::FetchPage(page_id_t page_id) {
   if (page_table_->Find(page_id, page)) {
     replacer_->Erase(page);
     pin_page(page);
+    if(page_id == 3){
+      LOG_INFO("Fetch page 3, and the actual page id:%d", page->GetPageId());
+    }
     return page;
   }
 
@@ -98,6 +102,11 @@ bool BufferPoolManager::UnpinPage(page_id_t page_id, bool is_dirty) {
   if (!page_table_->Find(page_id, page)) {
     return false;
   }
+  //Debug
+  if(page_id == 3){
+    LOG_INFO("The page id before unpin:%d, passed page id:%d", page->GetPageId(), page_id);
+  }
+  //
 
   page->pin_count_--;
   if (page->pin_count_ == 0) {
@@ -107,7 +116,11 @@ bool BufferPoolManager::UnpinPage(page_id_t page_id, bool is_dirty) {
   if (is_dirty) {
     page->is_dirty_ = true;
   }
-
+  //Debug 
+  if(page_id == 3){
+    LOG_INFO("The page id after unpin:%d", page->GetPageId());
+  }
+  //
   return true;
 }
 
