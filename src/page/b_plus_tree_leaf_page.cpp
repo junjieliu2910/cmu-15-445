@@ -65,8 +65,11 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::KeyIndex(
     // }
     // return begin;
     for(int i = 0; i < GetSize(); ++i){
-        
+        if(comparator(array[i].first, key) >= 0){
+            return i;
+        }
     }
+    return GetSize() - 1;
 }
 
 /*
@@ -147,6 +150,7 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyHalfFrom(MappingType *items, int size) {
     assert(GetSize() == 0);
     memcpy(array, items, static_cast<size_t>(size*sizeof(MappingType)));
     IncreaseSize(size);
+    assert(GetSize() == size);
 }
 
 /*****************************************************************************
@@ -167,6 +171,7 @@ bool B_PLUS_TREE_LEAF_PAGE_TYPE::Lookup(const KeyType &key, ValueType &value,
     int key_index = KeyIndex(key, comparator);
     if(comparator(array[key_index].first, key)==0){
         value = array[key_index].second;
+        LOG_INFO("Leaf page look up,  index: %d", key_index);
         return true;
     }
     return false;

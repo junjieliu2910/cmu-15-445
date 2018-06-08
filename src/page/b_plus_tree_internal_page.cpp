@@ -89,7 +89,7 @@ B_PLUS_TREE_INTERNAL_PAGE_TYPE::Lookup(const KeyType &key,
     }
 
     for(int i = 1; i < GetSize(); ++i){
-        if(comparator(key, array[i].first) <= 0){
+        if(comparator(key, array[i].first) < 0){
             return array[i-1].second;
         }
     }
@@ -152,7 +152,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(
         assert(child_page != nullptr);
         auto child_node = reinterpret_cast<BPlusTreePage *>(child_page->GetData());
         child_node->SetParentPageId(recipient->GetPageId());
-        buffer_pool_manager->UnpinPage(child_page->GetPageId(), true);
+        buffer_pool_manager->UnpinPage(child_node->GetPageId(), true);
     }
 }
 
@@ -162,8 +162,8 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyHalfFrom(
     //
     int current_size = GetSize();
     assert(current_size == 1);
-    memcpy(array+1, items, (size_t)size*sizeof(MappingType));
-    IncreaseSize(size);
+    memcpy(array, items, (size_t)size*sizeof(MappingType));
+    IncreaseSize(size-1);
 }
 
 /*****************************************************************************

@@ -50,6 +50,8 @@ Page *BufferPoolManager::FetchPage(page_id_t page_id) {
   std::lock_guard<std::mutex> guard(latch_);
 
   Page *page = nullptr;
+  if (page_id == INVALID_PAGE_ID) { return page; }
+
   if (page_table_->Find(page_id, page)) {
     replacer_->Erase(page);
     pin_page(page);
