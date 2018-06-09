@@ -143,25 +143,28 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(
     BPlusTreeInternalPage *recipient,
     BufferPoolManager *buffer_pool_manager) {
     // Move the right half part to the recipient
-    int size = GetSize() / 2;
-    recipient->CopyHalfFrom(array+GetSize()-size, size, buffer_pool_manager);
-    IncreaseSize(-1*size);
+    int half = (GetSize()+1)/2;
+    recipient->CopyHalfFrom(array+GetSize()-half, half, buffer_pool_manager);
     //Update the parent page id for right child
-    for(int i = GetSize() - size; i < GetSize(); ++i){
+    for(int i = GetSize() - half; i < GetSize(); ++i){
         auto child_page = buffer_pool_manager->FetchPage(array[i].second);
         assert(child_page != nullptr);
         auto child_node = reinterpret_cast<BPlusTreePage *>(child_page->GetData());
         child_node->SetParentPageId(recipient->GetPageId());
+        if(recipient->GetPageId() == 43){
+            LOG_INFO("The child page id:%d, updated parent id: %d", child_node->GetPageId(), child_node->GetParentPageId());
+        }
+        //LOG_INFO("Child page id: %d,  pin count:%d", child_page->GetPageId(), child_page->GetPinCount());
         buffer_pool_manager->UnpinPage(child_node->GetPageId(), true);
     }
+    IncreaseSize(-1*half);
 }
 
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyHalfFrom(
     MappingType *items, int size, BufferPoolManager *buffer_pool_manager) {
     //
-    int current_size = GetSize();
-    assert(current_size == 1);
+    assert(!IsLeafPage() && GetSize() == 1 && size > 0);
     memcpy(array, items, (size_t)size*sizeof(MappingType));
     IncreaseSize(size-1);
 }

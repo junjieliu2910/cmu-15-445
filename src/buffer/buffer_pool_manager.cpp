@@ -103,8 +103,12 @@ bool BufferPoolManager::UnpinPage(page_id_t page_id, bool is_dirty) {
     return false;
   }
   page = found->second;
+  if(page->pin_count_ == 0){
+    LOG_INFO("Illeagal unpin page id: %d", page_id);
+    assert(page->pin_count_ > 0);
+  }
   page->pin_count_--;
-  LOG_INFO("Unpin,  page: %d, pin count:%d", page->GetPageId(), page->GetPinCount());
+  //LOG_INFO("Unpin,  page: %d, pin count:%d", page->GetPageId(), page->GetPinCount());
   if (page->pin_count_ == 0) {
     replacer_->Insert(page);
   }
