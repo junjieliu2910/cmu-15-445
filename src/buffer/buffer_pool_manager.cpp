@@ -15,7 +15,7 @@ BufferPoolManager::BufferPoolManager(size_t pool_size,
       log_manager_(log_manager) {
   // a consecutive memory space for buffer pool
   pages_ = new Page[pool_size_];
-  page_table_ = new ExtendibleHash<page_id_t, Page *>(BUCKET_SIZE);
+  page_table_ = new std::unordered_map<page_id_t, Page *>;
   replacer_ = new LRUReplacer<Page *>;
   free_list_ = new std::list<Page *>;
 
@@ -52,13 +52,12 @@ Page *BufferPoolManager::FetchPage(page_id_t page_id) {
 
   Page *page = nullptr;
   if (page_id == INVALID_PAGE_ID) { return page; }
+  auto found = page_table_->find(page_id);
 
-  if (page_table_->Find(page_id, page)) {
+  if (found != page_table_->end()) {
+    page = found->second;
     replacer_->Erase(page);
     pin_page(page);
-    if(page_id == 3){
-      LOG_INFO("Fetch page 3, and the actual page id:%d", page->GetPageId());
-    }
     return page;
   }
 
@@ -77,11 +76,11 @@ Page *BufferPoolManager::FetchPage(page_id_t page_id) {
       disk_manager_->WritePage(page->GetPageId(), page->GetData());
       page->is_dirty_ = false;
     }
-    page_table_->Remove(page->GetPageId());
+    page_table_->erase(page->GetPageId());
   }
 
   disk_manager_->ReadPage(page_id, page->GetData());
-  page_table_->Insert(page_id, page);
+  page_table_->insert(std::make_pair(page_id, page));
   page->page_id_ = page_id;
   pin_page(page);
   assert(page->pin_count_ == 1);
@@ -99,16 +98,13 @@ bool BufferPoolManager::UnpinPage(page_id_t page_id, bool is_dirty) {
   std::lock_guard<std::mutex> guard(latch_);
 
   Page *page = nullptr;
-  if (!page_table_->Find(page_id, page)) {
+  auto found = page_table_->find(page_id);
+  if (found == page_table_->end()) {
     return false;
   }
-  //Debug
-  if(page_id == 3){
-    LOG_INFO("The page id before unpin:%d, passed page id:%d", page->GetPageId(), page_id);
-  }
-  //
-
+  page = found->second;
   page->pin_count_--;
+  LOG_INFO("Unpin,  page: %d, pin count:%d", page->GetPageId(), page->GetPinCount());
   if (page->pin_count_ == 0) {
     replacer_->Insert(page);
   }
@@ -116,11 +112,6 @@ bool BufferPoolManager::UnpinPage(page_id_t page_id, bool is_dirty) {
   if (is_dirty) {
     page->is_dirty_ = true;
   }
-  //Debug 
-  if(page_id == 3){
-    LOG_INFO("The page id after unpin:%d", page->GetPageId());
-  }
-  //
   return true;
 }
 
@@ -133,9 +124,11 @@ bool BufferPoolManager::UnpinPage(page_id_t page_id, bool is_dirty) {
 bool BufferPoolManager::FlushPage(page_id_t page_id) {
   std::lock_guard<std::mutex> guard(latch_);
   Page *page = nullptr;
-  if (!page_table_->Find(page_id, page)) {
+  auto found = page_table_->find(page_id);
+  if (found == page_table_->end()) {
     return false;
   }
+  page = found->second;
 
   disk_manager_->WritePage(page_id, page->GetData());
   page->is_dirty_ = false;
@@ -153,8 +146,10 @@ bool BufferPoolManager::FlushPage(page_id_t page_id) {
 bool BufferPoolManager::DeletePage(page_id_t page_id) {
   std::lock_guard<std::mutex> guard(latch_);
   Page *page = nullptr;
-  auto ret = page_table_->Find(page_id, page);
-  if (ret) {
+  //auto ret = page_table_->Find(page_id, page);
+  auto found = page_table_->find(page_id);
+  if (found!=page_table_->end()) {
+    page = found->second;
     if (page->GetPinCount() != 0) {
       return false;
     }
@@ -162,8 +157,7 @@ bool BufferPoolManager::DeletePage(page_id_t page_id) {
     auto erase = replacer_->Erase(page);
     assert(erase);
     free_list_->insert(free_list_->end(), page);
-    auto remove = page_table_->Remove(page_id);
-    assert(remove);
+    page_table_->erase(page_id);
     page->page_id_ = INVALID_PAGE_ID;
     page->is_dirty_ = false;
     page->ResetMemory();
@@ -200,11 +194,11 @@ Page *BufferPoolManager::NewPage(page_id_t &page_id) {
       disk_manager_->WritePage(page->GetPageId(), page->GetData());
       page->is_dirty_ = false;
     }
-    page_table_->Remove(page->GetPageId());
+    page_table_->erase(page->GetPageId());
   }
   page_id = disk_manager_->AllocatePage();
 
-  page_table_->Insert(page_id, page);
+  page_table_->insert(std::make_pair(page_id, page));
   page->ResetMemory();
   page->page_id_ = page_id;
   page->is_dirty_ = true;

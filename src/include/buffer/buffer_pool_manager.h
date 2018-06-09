@@ -9,6 +9,7 @@
 #pragma once
 #include <list>
 #include <mutex>
+#include <unordered_map>
 
 
 #include "buffer/lru_replacer.h"
@@ -40,7 +41,8 @@ private:
   Page *pages_;      // array of pages
   DiskManager *disk_manager_;
   LogManager *log_manager_;
-  HashTable<page_id_t, Page *> *page_table_; // to keep track of pages
+  //HashTable<page_id_t, Page *> *page_table_; // to keep track of pages
+  std::unordered_map<page_id_t, Page *> *page_table_;
   Replacer<Page *> *replacer_;   // to find an unpinned page for replacement
   std::list<Page *> *free_list_; // to find a free page for replacement
   std::mutex latch_;             // to protect shared data structure

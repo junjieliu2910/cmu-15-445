@@ -51,12 +51,12 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetKeyAt(int index, const KeyType &key) {
 INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueIndex(const ValueType &value) const {
     // The value is note sorted, can only use sequential scan
-    for(int i = 0; i < GetSize(); ++i){
+    for(int i = 1; i < GetSize(); ++i){
         if(array[i].second == value){
             return i;
         }
     }
-    return GetSize();
+    return GetSize()-1;
 }
 
 /*
@@ -126,7 +126,7 @@ int B_PLUS_TREE_INTERNAL_PAGE_TYPE::InsertNodeAfter(
     int size = GetSize();
     assert(size < GetMaxSize());
     int value_index = ValueIndex(old_value);
-    memmove(array+value_index+2, array+value_index+1, (size_t)size*sizeof(MappingType));
+    memmove(array+value_index+2, array+value_index+1, (size-value_index-1)*sizeof(MappingType));
     array[value_index+1] = std::make_pair(new_key, new_value);
     IncreaseSize(1);
     return size + 1;

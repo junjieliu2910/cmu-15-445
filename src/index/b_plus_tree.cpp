@@ -129,6 +129,7 @@ bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value,
             buffer_pool_manager_->UnpinPage(leaf->GetPageId(), true);
         }else{
             auto new_leaf_node = Split(leaf);
+            LOG_INFO("Leaf split, page id:%d", new_leaf_node->GetPageId());
             assert(new_leaf_node->IsLeafPage()); 
             KeyType middle_one = new_leaf_node->KeyAt(0);
             // Split the right half to new node
@@ -140,19 +141,6 @@ bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value,
             new_leaf_node->SetNextPageId(leaf->GetNextPageId());
             leaf->SetNextPageId(new_leaf_node->GetPageId());
             new_leaf_node->SetParentPageId(leaf->GetParentPageId());
-
-            //debug 
-            // auto old = leaf->GetPageId(), new_one = new_leaf_node->GetPageId();
-            // buffer_pool_manager_->UnpinPage(leaf->GetPageId(), true);
-            // buffer_pool_manager_->UnpinPage(new_leaf_node->GetPageId(), true);
-            // auto old_page = buffer_pool_manager_->FetchPage(old);
-            // auto new_page = buffer_pool_manager_->FetchPage(new_one);
-            // assert(old_page->GetPinCount() == 1 && new_page->GetPinCount() == 1);
-            // auto old_leaf = reinterpret_cast<BPlusTreePage *>(old_page->GetData());
-            // auto new_leaf = reinterpret_cast<BPlusTreePage *>(new_page->GetData());
-            // LOG_INFO("Leaf split: new: %d,  total node: %d, root: %d, parent:%d",new_leaf_node->GetPageId(), split_count_ + 1, root_page_id_, new_leaf_node->GetParentPageId());
-            // InsertIntoParent(old_leaf, middle_one, new_leaf, transaction);
-
             InsertIntoParent(leaf, middle_one, new_leaf_node, transaction);
         }
         return true;
@@ -178,7 +166,7 @@ template <typename N> N *BPLUSTREE_TYPE::Split(N *node) {
     node->MoveHalfTo(new_node, buffer_pool_manager_);
     split_count_ ++;
 
-    LOG_INFO("Split,  page id: %d,  pin count: %d", new_page->GetPageId(), new_page->GetPinCount());
+    //LOG_INFO("Split,  page id: %d,  pin count: %d", new_page->GetPageId(), new_page->GetPinCount());
     assert(new_page->GetPinCount() == 1 && new_page->GetPageId() == new_node->GetPageId());
     
     return new_node;
@@ -199,7 +187,6 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node,
                                       BPlusTreePage *new_node,
                                       Transaction *transaction) {
     //
-    
     if(old_node->IsRootPage()){
         //If the old node is the root node
         auto page = buffer_pool_manager_->NewPage(root_page_id_);
@@ -236,29 +223,18 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node,
         
         assert(page->GetPinCount() == 1);
         if(parent->GetSize() < parent->GetMaxSize()){
-            
             parent->InsertNodeAfter(old_node->GetPageId(), key, new_node->GetPageId());
             LOG_INFO("old node: %d, new node: %d, parent node:%d", old_node->GetPageId(), new_node->GetPageId(), parent->GetPageId());
-            //debug
-            auto debug = parent->GetPageId(), old_one = old_node->GetPageId();
-            if(old_one==21){
-                LOG_INFO("1. The debug page id: %d", parent->GetPageId());
-            } 
-            //
-            assert(buffer_pool_manager_->UnpinPage(parent->GetPageId(), true));
+            LOG_INFO("Root page id: %d", root_page_id_);
+            //assert(page->GetPinCount()==1);
+            buffer_pool_manager_->UnpinPage(parent->GetPageId(), true);
             buffer_pool_manager_->UnpinPage(new_node->GetPageId(), true); 
             buffer_pool_manager_->UnpinPage(old_node->GetPageId(), true);
-
-            //debug 
-            if(old_one==21){
-                auto page = buffer_pool_manager_->FetchPage(debug);
-
-                LOG_INFO("2. The debug page id: %d", page->GetPageId());
-            } 
             
         }else{
             //Parent page is full, split parent page 
             auto new_internal = Split(parent);
+            LOG_INFO("Internal split, page id:%d", new_internal->GetPageId());
             new_internal->SetParentPageId(parent->GetParentPageId());
             KeyType mid_one = new_internal->KeyAt(0);
             if(comparator_(key, mid_one) < 0){
@@ -270,7 +246,6 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node,
             buffer_pool_manager_->UnpinPage(new_node->GetPageId(), true);
             buffer_pool_manager_->UnpinPage(old_node->GetPageId(), true);
             assert(page->GetPinCount() == 1);
-            LOG_INFO("Parent split with new internal node id %d, total node is %d", new_internal->GetPageId(), split_count_);
             InsertIntoParent(parent, mid_one, new_internal);
         }
     }
@@ -496,8 +471,8 @@ B_PLUS_TREE_LEAF_PAGE_TYPE *BPLUSTREE_TYPE::FindLeafPage(const KeyType &key,
     auto page = buffer_pool_manager_->FetchPage(root_page_id_);
     assert(page->GetPageId() == root_page_id_);
     BPlusTreePage* node = reinterpret_cast<BPlusTreePage *>(page->GetData());
-    LOG_INFO("Root page id: %d,  pin count: %d", root_page_id_, page->GetPinCount());
-    assert(page!=nullptr && page->GetPinCount() == 1);
+    //LOG_INFO("Root page id: %d,  pin count: %d", root_page_id_, page->GetPinCount());
+    assert(page!=nullptr);
     while(!node->IsLeafPage()){
         auto internal = reinterpret_cast<BPlusTreeInternalPage<KeyType, page_id_t,
                                                KeyComparator> *>(node);
@@ -507,16 +482,9 @@ B_PLUS_TREE_LEAF_PAGE_TYPE *BPLUSTREE_TYPE::FindLeafPage(const KeyType &key,
         }else{
             child_page_id = internal->Lookup(key, comparator_);
         }
-        assert(child_page_id != INVALID_PAGE_ID);
-        auto child = buffer_pool_manager_->FetchPage(child_page_id);
-        LOG_INFO("Child page id: %d,   pin count: %d", child->GetPageId(), child->GetPinCount());
-        assert(child != nullptr && child->GetPinCount() == 1);
-
-        node = reinterpret_cast<BPlusTreePage *>(child->GetData());
+        page = buffer_pool_manager_->FetchPage(child_page_id);
+        node = reinterpret_cast<BPlusTreePage *>(page->GetData());
         buffer_pool_manager_->UnpinPage(internal->GetPageId(), false);
-        LOG_INFO("Parent page id: %d,   pin count: %d", page->GetPageId(), page->GetPinCount());
-        assert(page->GetPinCount() == 0);
-        page = child;
     }
     // Now node is leaf page
     auto leaf = reinterpret_cast<BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *>(page->GetData());
