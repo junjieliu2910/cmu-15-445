@@ -74,6 +74,7 @@ bool BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value,
         StartNewTree(key, value);
         return true;
     }
+    LOG_INFO("Insert");
     return InsertIntoLeaf(key, value, transaction);
 }
 /*
@@ -484,7 +485,7 @@ B_PLUS_TREE_LEAF_PAGE_TYPE *BPLUSTREE_TYPE::FindLeafPage(const KeyType &key,
         buffer_pool_manager_->UnpinPage(internal->GetPageId(), false);
     }
     // Now node is leaf page
-    auto leaf = reinterpret_cast<BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *>(page->GetData());
+    auto leaf = reinterpret_cast<BPlusTreeLeafPage<KeyType, ValueType, KeyComparator> *>(node);
     return leaf;
 }
 

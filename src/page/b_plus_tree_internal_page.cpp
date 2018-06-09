@@ -151,9 +151,6 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(
         assert(child_page != nullptr);
         auto child_node = reinterpret_cast<BPlusTreePage *>(child_page->GetData());
         child_node->SetParentPageId(recipient->GetPageId());
-        if(recipient->GetPageId() == 43){
-            LOG_INFO("The child page id:%d, updated parent id: %d", child_node->GetPageId(), child_node->GetParentPageId());
-        }
         //LOG_INFO("Child page id: %d,  pin count:%d", child_page->GetPageId(), child_page->GetPinCount());
         buffer_pool_manager->UnpinPage(child_node->GetPageId(), true);
     }
@@ -165,7 +162,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyHalfFrom(
     MappingType *items, int size, BufferPoolManager *buffer_pool_manager) {
     //
     assert(!IsLeafPage() && GetSize() == 1 && size > 0);
-    memcpy(array, items, (size_t)size*sizeof(MappingType));
+    memcpy(array, items, size*sizeof(MappingType));
     IncreaseSize(size-1);
 }
 

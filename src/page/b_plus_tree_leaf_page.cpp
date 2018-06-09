@@ -138,7 +138,7 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveHalfTo(
     BPlusTreeLeafPage *recipient,
     __attribute__((unused)) BufferPoolManager *buffer_pool_manager) {
     // add here
-    int size = GetSize()/2;
+    int size = (GetSize()+1)/2;
     // Move the right half to the recipient
     MappingType *src = array + GetSize() - size;
     recipient->CopyHalfFrom(src, size);
@@ -148,9 +148,8 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveHalfTo(
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyHalfFrom(MappingType *items, int size) {
     assert(GetSize() == 0);
-    memcpy(array, items, static_cast<size_t>(size*sizeof(MappingType)));
+    memcpy(array, items, size*sizeof(MappingType));
     IncreaseSize(size);
-    assert(GetSize() == size);
 }
 
 /*****************************************************************************
