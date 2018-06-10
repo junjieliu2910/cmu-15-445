@@ -53,7 +53,6 @@ Page *BufferPoolManager::FetchPage(page_id_t page_id) {
   Page *page = nullptr;
   if (page_id == INVALID_PAGE_ID) { return page; }
   auto found = page_table_->find(page_id);
-
   if (found != page_table_->end()) {
     page = found->second;
     replacer_->Erase(page);

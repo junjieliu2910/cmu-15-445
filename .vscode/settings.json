@@ -3,6 +3,9 @@
         "initializer_list": "cpp",
         "chrono": "cpp",
         "array": "cpp",
-        "utility": "cpp"
+        "utility": "cpp",
+        "ratio": "cpp",
+        "system_error": "cpp",
+        "thread": "cpp"
     }
 }

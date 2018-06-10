@@ -364,7 +364,7 @@ TEST(BPlusTreeTests, ScaleTest) {
   for (int64_t key = 1; key < remove_scale; key++) {
     remove_keys.push_back(key);
   }
-  // std::random_shuffle(remove_keys.begin(), remove_keys.end());
+  //std::random_shuffle(remove_keys.begin(), remove_keys.end());
   for (auto key : remove_keys) {
     index_key.SetFromInteger(key);
     tree.Remove(index_key, transaction);

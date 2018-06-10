@@ -51,7 +51,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::SetKeyAt(int index, const KeyType &key) {
 INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueIndex(const ValueType &value) const {
     // The value is note sorted, can only use sequential scan
-    for(int i = 1; i < GetSize(); ++i){
+    for(int i = 0; i < GetSize(); ++i){
         if(array[i].second == value){
             return i;
         }
@@ -151,7 +151,6 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveHalfTo(
         assert(child_page != nullptr);
         auto child_node = reinterpret_cast<BPlusTreePage *>(child_page->GetData());
         child_node->SetParentPageId(recipient->GetPageId());
-        //LOG_INFO("Child page id: %d,  pin count:%d", child_page->GetPageId(), child_page->GetPinCount());
         buffer_pool_manager->UnpinPage(child_node->GetPageId(), true);
     }
     IncreaseSize(-1*half);
@@ -178,7 +177,7 @@ INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::Remove(int index) {
     int size = GetSize();
     assert(size > 1);
-    memmove(array+index, array+index+1, (size_t)((size-index-1)*sizeof(MappingType)));
+    memmove(array+index, array+index+1, (size-index-1)*sizeof(MappingType));
     IncreaseSize(-1);
 }
 
@@ -209,12 +208,10 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(
     // Update the data in parent page
     auto parent_page = buffer_pool_manager->FetchPage(GetParentPageId());
     auto parent_node = reinterpret_cast<BPlusTreeInternalPage *>(parent_page->GetData());
-    // NOTE: Not finish here
     // Need to change the related key value in parent page
     SetKeyAt(0, parent_node->KeyAt(index_in_parent));
-    buffer_pool_manager->UnpinPage(parent_page->GetPageId(), true);
+    buffer_pool_manager->UnpinPage(parent_node->GetPageId(), false);
     recipient->CopyAllFrom(array, size, buffer_pool_manager);
-
     // Update the parent page id of the child
     for(int i = 0; i < size; ++i){
         auto page = buffer_pool_manager->FetchPage(array[i].second);
@@ -253,7 +250,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveFirstToEndOf(
     //Construct the pair
     auto page = buffer_pool_manager->FetchPage(GetParentPageId());
     auto parent = reinterpret_cast<BPlusTreeInternalPage *>(page->GetData());
-    int parent_index = parent->ValueIndex(array[0].second);
+    int parent_index = parent->ValueIndex(GetPageId());
     recipient->CopyLastFrom(std::make_pair(parent->KeyAt(parent_index), array[0].second), buffer_pool_manager);
     //Change parent page
     parent->SetKeyAt(parent_index, array[1].first);
@@ -304,7 +301,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyFirstFrom(
     auto parent = reinterpret_cast<BPlusTreeInternalPage *>(page->GetData());
     array[0].first = parent->KeyAt(parent_index);
     //Insert into the first position
-    memmove(array+1, array, (size_t)size*sizeof(MappingType));
+    memmove(array+1, array, size*sizeof(MappingType));
     array[0] = pair;
     //Change parent page
     parent->SetKeyAt(parent_index, pair.first);
