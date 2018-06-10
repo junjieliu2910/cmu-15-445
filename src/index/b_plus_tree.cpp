@@ -264,6 +264,16 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node,
 INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
     B_PLUS_TREE_LEAF_PAGE_TYPE* leaf = FindLeafPage(key, false);
+    //debug
+    // if(root_page_id_==44){
+    //     page_id_t a = 700;
+    //     auto page = buffer_pool_manager_->FetchPage(a);
+    //     auto node = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE *>(page->GetData());
+    //     LOG_INFO("node %d: %s",node->GetPageId(), node->ToString(true).c_str());
+    //     exit(1);
+    // }
+    //
+
     if(leaf==nullptr){
         // The tree is empty 
         return;
@@ -354,10 +364,8 @@ bool BPLUSTREE_TYPE::Coalesce(
     BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator> *&parent,
     int index, Transaction *transaction) {
     //
-    LOG_INFO("Coalesce %d and %d", neighbor_node->GetPageId(), node->GetPageId());
-    if(root_page_id_ == 3){
-        LOG_INFO("left node: %s\n right node:%s",neighbor_node->ToString(true).c_str(), node->ToString(true).c_str());
-    }
+    LOG_INFO("Coalesce %d and %d\nleft:%s\nright:%s", neighbor_node->GetPageId(), node->GetPageId(), neighbor_node->ToString(true).c_str(), node->ToString(true).c_str());
+    
     int parent_index = index;
     node->MoveAllTo(neighbor_node, parent_index, buffer_pool_manager_);
     parent->Remove(parent_index);
@@ -485,6 +493,27 @@ INDEXITERATOR_TYPE BPLUSTREE_TYPE::Begin() {
  */
 INDEX_TEMPLATE_ARGUMENTS
 INDEXITERATOR_TYPE BPLUSTREE_TYPE::Begin(const KeyType &key) {
+    //debug
+    if(root_page_id_==3){
+        bool flag = false;
+        auto page = buffer_pool_manager_->FetchPage(root_page_id_);
+        auto node = reinterpret_cast<BPlusTreeInternalPage<KeyType, page_id_t,
+                                               KeyComparator> *>(page->GetData());
+        //
+        LOG_INFO("Root node: %s", node->ToString(true).c_str());
+        for(int i = 0; i < node->GetSize(); ++i){
+            if((node->ValueAt(i))>100){
+                flag=true;
+            }
+            auto child = buffer_pool_manager_->FetchPage(node->ValueAt(i));
+            auto child_node = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE *>(child->GetData());
+            LOG_INFO("Child id:%d \n%s", child->GetPageId(), child_node->ToString(true).c_str());
+        }
+        if(flag) exit(1);
+    }
+    //
+
+
     LOG_INFO("Begin, root page id: %d", root_page_id_);
     auto leaf = FindLeafPage(key, false);
     LOG_INFO("Iterator: leaf page id:%d", leaf->GetPageId());
