@@ -207,7 +207,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(
     int size = GetSize();
     // Update the data in parent page
     auto parent_page = buffer_pool_manager->FetchPage(GetParentPageId());
-    LOG_INFO("MoveAllto, parent page pin count: %d", parent_page->GetPinCount());
+    //LOG_INFO("MoveAllto, parent page pin count: %d", parent_page->GetPinCount());
     //assert(parent_page != nullptr && parent_page->GetPinCount() == 2);
     auto parent_node = reinterpret_cast<BPlusTreeInternalPage *>(parent_page->GetData());
     // Need to change the related key value in parent page
