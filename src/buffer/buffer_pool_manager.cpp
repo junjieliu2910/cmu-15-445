@@ -68,6 +68,7 @@ Page *BufferPoolManager::FetchPage(page_id_t page_id) {
     assert(!page->is_dirty_);
   } else {
     if (!replacer_->Victim(page)) {
+      LOG_INFO("All page are pinned");
       return nullptr;
     }
     assert(page->pin_count_ == 0);

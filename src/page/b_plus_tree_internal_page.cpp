@@ -207,6 +207,8 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(
     int size = GetSize();
     // Update the data in parent page
     auto parent_page = buffer_pool_manager->FetchPage(GetParentPageId());
+    LOG_INFO("MoveAllto, parent page pin count: %d", parent_page->GetPinCount());
+    //assert(parent_page != nullptr && parent_page->GetPinCount() == 2);
     auto parent_node = reinterpret_cast<BPlusTreeInternalPage *>(parent_page->GetData());
     // Need to change the related key value in parent page
     SetKeyAt(0, parent_node->KeyAt(index_in_parent));
@@ -215,12 +217,12 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(
     // Update the parent page id of the child
     for(int i = 0; i < size; ++i){
         auto page = buffer_pool_manager->FetchPage(array[i].second);
-        assert(page != nullptr);
+        assert(page != nullptr && page->GetPinCount() == 1);
         auto node = reinterpret_cast<BPlusTreePage *>(page->GetData());
         node->SetParentPageId(recipient->GetPageId());
         buffer_pool_manager->UnpinPage(page->GetPageId(), true);
     }
-
+    SetSize(0);
 }
 
 INDEX_TEMPLATE_ARGUMENTS
@@ -254,10 +256,9 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveFirstToEndOf(
     recipient->CopyLastFrom(std::make_pair(parent->KeyAt(parent_index), array[0].second), buffer_pool_manager);
     //Change parent page
     parent->SetKeyAt(parent_index, array[1].first);
-    Remove(0);
+    Remove(0); // Size already reduce by 1 here
     //Unpin pages
     buffer_pool_manager->UnpinPage(parent->GetPageId(), true);
-    IncreaseSize(-1);
 }
 
 INDEX_TEMPLATE_ARGUMENTS

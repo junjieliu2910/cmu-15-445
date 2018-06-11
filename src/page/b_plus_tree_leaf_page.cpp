@@ -189,6 +189,10 @@ INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_LEAF_PAGE_TYPE::RemoveAndDeleteRecord(
     const KeyType &key, const KeyComparator &comparator) {
     // Ke does exist
+    if(GetPageId()==700){
+        LOG_INFO("Remove element in page 700");
+    }
+
     int size = GetSize();
     if(size == 0 || comparator(key, KeyAt(0)) < 0 || comparator(key, KeyAt(size-1)) > 0){
         return size;
@@ -215,6 +219,7 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveAllTo(BPlusTreeLeafPage *recipient,
     //Move to left
     recipient->CopyAllFrom(array, GetSize());
     recipient->SetNextPageId(GetNextPageId());
+    SetSize(0);
 }
 
 INDEX_TEMPLATE_ARGUMENTS
@@ -223,6 +228,7 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyAllFrom(MappingType *items, int size) {
     int current_size = GetSize();
     assert(current_size + size <= GetMaxSize());
     memcpy(array + current_size, items, size*sizeof(MappingType));
+    IncreaseSize(size);
 }
 
 /*****************************************************************************
@@ -241,10 +247,9 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveFirstToEndOf(
     memmove(array, array + 1, (GetSize()-1)*sizeof(MappingType));
     IncreaseSize(-1);
 
-    auto *page = buffer_pool_manager -> FetchPage(GetParentPageId());
+    auto *page = buffer_pool_manager->FetchPage(GetParentPageId());
     if (page == nullptr) {
-        throw Exception(EXCEPTION_TYPE_INDEX,
-                   "all page are pinned while MoveFirstToEndOf");
+        throw Exception(EXCEPTION_TYPE_INDEX, "all page are pinned while MoveFirstToEndOf");
     }
     auto parent_node = reinterpret_cast<BPlusTreeInternalPage<KeyType, page_id_t,
                                                KeyComparator> *>(page->GetData());
