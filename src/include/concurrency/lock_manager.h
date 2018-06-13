@@ -20,6 +20,49 @@ namespace cmudb {
 
 enum class LockMode { SHARED = 0, EXCLUSIVE }; // lock mode for list item 
 
+
+class LockList {
+  public:
+    LockList(txn_id_t id, LockMode mode, bool status){
+      list_.push_back(LockItem(id, mode, status));
+    }
+
+    inline bool IsEmpty(){return list_.empty();}
+
+    inline void Add(txn_id_t id, LockMode mode, bool status){
+      list_.push_back(LockItem(id, mode, status));
+    }
+    
+    inline void push_front(txn_id_t id, LockMode mode, bool status){
+      list_.push_front(LockItem(id, mode, status));
+    }
+
+    void MoveToFront(){
+      // move an element to the begin of the list
+    }
+
+    bool CanAddShardLock(){
+      auto first = list_.begin();
+      if(first->GetLockMode() == LockMode::SHARED){
+        return true;
+      }
+      return false;
+    }
+
+    struct LockItem {
+     
+      explicit LockItem(txn_id_t id, LockMode mode, bool status):
+      tid_(id), mode_(mode), held_(status){}
+     
+      txn_id_t tid_;
+      LockMode mode_;
+      bool held_; // For strict 2PL
+    }
+
+  private:
+    std::list<LockItem> list_;
+};
+
 class LockManager {
 
 public:
@@ -43,38 +86,6 @@ public:
   bool Unlock(Transaction *txn, const RID &rid);
   /*** END OF APIs ***/
   bool IsValidToLock(Transaction *txn);
-
-  class LockList {
-    public:
-      LockList(Transaction* txn, LockMode mode){
-        list_.push_back(std::make_pair(txn, mode));
-      }
-
-      inline bool IsEmpty(){return list_.empty();}
-
-      inline void Add(Transaction* txn, LockMode mode){
-        list_.push_back(std::make_pair(txn, mode));
-      }
-      
-      inline void push_front(Transaction* txn, LockMode mode){
-        list_.push_back(std::make_pair(txn, mode));
-      }
-
-      void MoveToFront(){
-        // move an element to the begin of the list
-      }
-
-      bool CanAddShardLock(){
-        auto first = list_.begin();
-        if(first->second == LockMode::SHARED){
-          return true;
-        }
-        return false;
-      }
-
-    private:
-      std::list<std::pair<Transaction*, LockMode>> list_;
-  };
 
 private:
   bool strict_2PL_;

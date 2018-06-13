@@ -40,7 +40,7 @@ bool LockManager::LockShared(Transaction *txn, const RID &rid) {
   // No lock is granted 
   auto found_list = lock_table_.find(rid);
   if(found_list == lock_table_.end()){
-    lock_table_.push_back(std::make_shared<LockList>(txn, LockMode::SHARED));
+    lock_table_.push_back(std::make_shared<LockList>(txn->GetTransactionId(), LockMode::SHARED, true));
     locker.unlock();
     txn->GetSharedLockSet()->insert(rid);
     return true;
@@ -50,13 +50,13 @@ bool LockManager::LockShared(Transaction *txn, const RID &rid) {
   auto locklist = found_list->second;
   if(locklist->CanAddShardLock()){
     // First lock is shared 
-    locklist->push_front(txn, LockMode::SHARED);
+    locklist->push_front(txn->GetTransactionId(), LockMode::SHARED, true);
     locker.unlock();
     txn->GetSharedLockSet()->insert(rid);
     return true;
   }else{
     // First lock is exclusive 
-    locklist->Add(txn, LockMode::SHARED);
+    locklist->Add(txn->GetTransactionId(), LockMode::SHARED, false);
     cond.wait(locker, locklist->CanAddShardLock);
     locklist->MoveToFront()
     locker.unlock();
@@ -74,8 +74,31 @@ bool LockManager::LockUpgrade(Transaction *txn, const RID &rid) {
   return false;
 }
 
+/*
+  Strict 2PL
+  Unlock until all the lock are release
+ */
 bool LockManager::Unlock(Transaction *txn, const RID &rid) {
-  return false;
+  
+  std::unique_lock<std::mutex> locker(mutex_);
+  if(txn->GetState() == TransactionState::GROWING){
+    txn->SetState(TransactionState::SHRINKING);
+  }
+
+  if(strict_2PL_){
+    // If the protocol is strict 2pl
+    
+    
+  }else{
+    /* Standard 2pl 
+       Update transaction lock set.
+       For one RID, each transaction can only held
+       one kind of lock.
+      */
+    
+  }
+
+  
 }
 
 } // namespace cmudb
