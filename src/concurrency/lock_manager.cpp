@@ -18,19 +18,15 @@ bool LockManager::IsValidToLock(Transaction* txn){
 }
 
 /*
-  For transacton in shrinking phase:
-  1. RID is not held by other transaction or the required lock is 
-  compatiable with current held lock. -> Grant the lock, add to 
-  corresponding lock set in transaction 
-  2. The lock require is not compatiable with current held lock, then
-  wait.
+  Question for this part:
+  1. If there are several txns that are waiting, and all are older than current one.
+  When the lock release, should I grant the lock to the first required txn or the 
+  oldest txn in the waiting list ?
 
-  Abort condition:
-  1. Require lock in shrinking/abort phase
+  2. Is upgraded lock has highest priority ?
 
-  After abort:
-  1. Unlock all the held lock
-  2. Delete all the waiting requiest of this transaction 
+  In this implementation, I grant to the oldest txn in the waiting list.
+  Since otherwise I have to abort all the other incompatiable waiting txn.
   */
 bool LockManager::LockShared(Transaction *txn, const RID &rid) {
   
@@ -40,65 +36,130 @@ bool LockManager::LockShared(Transaction *txn, const RID &rid) {
   // No lock is granted 
   auto found_list = lock_table_.find(rid);
   if(found_list == lock_table_.end()){
-    lock_table_.push_back(std::make_shared<LockList>(txn->GetTransactionId(), LockMode::SHARED, true));
+    lock_table_.insert({rid, std::make_shared<LockList>(txn->GetTransactionId(), LockMode::SHARED, true)});
     locker.unlock();
     txn->GetSharedLockSet()->insert(rid);
     return true;
   }
 
   //Chech whether current granted lock is shared 
-  auto locklist = found_list->second;
+  auto locklist = lock_table_[rid];
+  txn_id_t tid = txn->GetTransactionId();
   if(locklist->CanAddShardLock()){
     // First lock is shared 
-    locklist->push_front(txn->GetTransactionId(), LockMode::SHARED, true);
+    locklist->Push_front(tid, LockMode::SHARED, true);
     locker.unlock();
     txn->GetSharedLockSet()->insert(rid);
     return true;
   }else{
-    // First lock is exclusive 
-    locklist->Add(txn->GetTransactionId(), LockMode::SHARED, false);
-    cond.wait(locker, locklist->CanAddShardLock);
-    locklist->MoveToFront()
-    locker.unlock();
-    txn->GetSharedLockSet()->insert(rid);
-    return true;
+    // First lock is exclusive, wait die 
+    if(tid > locklist->GetOldest()){
+      // younger than held txn, abort 
+      txn->SetState(TransactionState::ABORTED);
+      return false;
+    }else{
+      locklist->Add(tid, LockMode::SHARED, false);
+      cond.wait(locker, [&](){
+        return locklist->Begin()->tid_ == tid;
+      });
+      locklist->Hold(tid);
+      locker.unlock();
+      txn->GetSharedLockSet()->insert(rid);
+      return true;
+    }
   }
 }
 
 bool LockManager::LockExclusive(Transaction *txn, const RID &rid) {
-  
-  return false;
+  std::unique_lock<std::mutex> locker(mutex_);
+  if(!IsValidToLock(txn)) return false;
+
+  // Rid not locked yet
+  auto found_list = lock_table_.find(rid);
+  if(found_list == lock_table_.end()){
+    lock_table_.insert({rid, std::make_shared<LockList>(txn->GetTransactionId(), LockMode::EXCLUSIVE, true)});
+    locker.unlock();
+    txn->GetExclusiveLockSet()->insert(rid);
+    return true;
+  }
+
+  // Wait-die
+  auto lock_list = lock_table_[rid];
+  txn_id_t tid = txn->GetTransactionId();
+  if(tid > lock_list->GetOldest()){
+    txn->SetState(TransactionState::ABORTED);
+    return false;
+  }else{
+    lock_list->Add(tid, LockMode::EXCLUSIVE, false);
+    cond.wait(locker, [&](){
+      return lock_list->Begin()->tid_ == tid;
+    });
+    lock_list->Hold(tid);
+    locker.unlock();
+    txn->GetExclusiveLockSet()->insert(rid);
+    return true;
+  }
 }
 
 bool LockManager::LockUpgrade(Transaction *txn, const RID &rid) {
-  return false;
+  std::unique_lock<std::mutex> locker(mutex_);
+  if(!IsValidToLock(txn)) return false;
+
+  auto found_list = lock_table_.find(rid);
+  if(found_list == lock_table_.end()){return false;}
+  
+  auto lock_list = lock_table_[rid];
+  txn_id_t tid = txn->GetTransactionId();
+  /*
+    Not sure whether upgrade should follow wait-die
+   */
+  if(tid > lock_list->GetOldest()){
+    txn->SetState(TransactionState::ABORTED);
+    return false;
+  }else{
+    lock_list->Remove(tid);
+    lock_list->Add(tid, LockMode::EXCLUSIVE, false);
+    return true;
+  }
 }
 
 /*
   Strict 2PL
-  Unlock until all the lock are release
+  Unlock until committed or aborted 
  */
 bool LockManager::Unlock(Transaction *txn, const RID &rid) {
   
   std::unique_lock<std::mutex> locker(mutex_);
-  if(txn->GetState() == TransactionState::GROWING){
-    txn->SetState(TransactionState::SHRINKING);
-  }
-
   if(strict_2PL_){
-    // If the protocol is strict 2pl
-    
-    
+   if(txn->GetState()!=TransactionState::ABORTED && 
+      txn->GetState()!=TransactionState::COMMITTED){
+      // Can not unlock in growing or shrinking state 
+      txn->SetState(TransactionState::ABORTED);
+   }
+   return false;
   }else{
-    /* Standard 2pl 
-       Update transaction lock set.
-       For one RID, each transaction can only held
-       one kind of lock.
-      */
-    
+   if(txn->GetState() == TransactionState::GROWING){
+     txn->SetState(TransactionState::SHRINKING);
+   }
   }
 
-  
+  /*
+    Exclusive lock must be the first one
+   */
+  txn_id_t tid = txn->GetTransactionId();
+  auto lock_list = lock_table_.find(rid)->second;
+  auto item = lock_list->Find(tid);
+  item.held_ = false;
+  if(item.mode_ == LockMode::SHARED){
+    txn->GetSharedLockSet()->erase(rid);
+  }else{
+    txn->GetExclusiveLockSet()->erase(rid);
+  }
+  if(item.mode_ == LockMode::EXCLUSIVE || lock_list->IsFirst(tid)){
+    cond.notify_all(); // Notify all waiting thread
+  }
+  lock_list->Remove(tid);
+  return true;
 }
 
 } // namespace cmudb
