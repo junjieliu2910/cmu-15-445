@@ -18,7 +18,9 @@
 #include "page/b_plus_tree_internal_page.h"
 #include "page/b_plus_tree_leaf_page.h"
 
+
 namespace cmudb {
+enum class Operation {SEARCH = 0, INSERT, DELETE};
 
 #define BPLUSTREE_TYPE BPlusTree<KeyType, ValueType, KeyComparator>
 // Main class providing the API for the Interactive B+ Tree.
@@ -58,12 +60,18 @@ public:
   // read data from file and remove one by one
   void RemoveFromFile(const std::string &file_name,
                       Transaction *transaction = nullptr);
-  // expose for test purpose
-  B_PLUS_TREE_LEAF_PAGE_TYPE *FindLeafPage(const KeyType &key,
-                                           bool leftMost = false);
 
+  
 private:
-  void StartNewTree(const KeyType &key, const ValueType &value);
+  void LockPage(Page* page, Transaction* txn, Operation op);
+  void UnlockParentPage(Page* page, Transaction* txn, Operation op);
+
+  Page *FindLeafPage(const KeyType &key,
+                    bool leftMost = false, 
+                    Transaction *txn = nullptr,
+                    Operation op = Operation::SEARCH);
+
+  void StartNewTree(const KeyType &key, const ValueType &value, Transaction* txn);
 
   bool InsertIntoLeaf(const KeyType &key, const ValueType &value,
                       Transaction *transaction = nullptr);
@@ -89,12 +97,18 @@ private:
 
   void UpdateRootPageId(int insert_record = false);
 
+  inline void LockRoot(){root_mutex_.lock();}
+  inline void UnlockRoot(){root_mutex_.unlock();}
+
   // member variable
   std::string index_name_;
   page_id_t root_page_id_;
   BufferPoolManager *buffer_pool_manager_;
   KeyComparator comparator_;
-  int split_count_;
+  int split_count_; // Count split 
+
+  std::mutex root_mutex_; //mutex for root page id
+  //bool root_wlocked_; // whether the root is Write locked 
 };
 
 } // namespace cmudb
