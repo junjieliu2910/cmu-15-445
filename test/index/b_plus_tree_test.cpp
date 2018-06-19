@@ -308,7 +308,7 @@ TEST(BPlusTreeTests, DeleteTest2) {
   remove("test.log");
 }
 
-TEST(BPlusTreeTests, ScaleTest1) {
+TEST(BPlusTreeTests, ScaleTest) {
   // create KeyComparator and index schema
   Schema *key_schema = ParseCreateStatement("a bigint");
   GenericComparator<8> comparator(key_schema);
