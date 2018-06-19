@@ -43,6 +43,7 @@ bool BPLUSTREE_TYPE::GetValue(const KeyType &key,
                               std::vector<ValueType> &result,
                               Transaction *transaction) {
     //
+    //LOG_INFO("GetValue");
     if(IsEmpty()) return false;
     auto leaf_page = FindLeafPage(key, false, transaction, Operation::SEARCH);
     auto leaf = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE *>(leaf_page->GetData());
@@ -502,6 +503,9 @@ INDEXITERATOR_TYPE BPLUSTREE_TYPE::Begin() {
     auto leaf_page = FindLeafPage(tmp, true, nullptr, Operation::SEARCH);
     auto leaf = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE *>(leaf_page->GetData());
     auto page_id = leaf->GetPageId();
+    if(leaf->IsRootPage()){
+        UnlockRoot();
+    }
     leaf_page->RUnlatch();
     buffer_pool_manager_->UnpinPage(page_id, false);
     return INDEXITERATOR_TYPE(page_id, 0, buffer_pool_manager_);
@@ -518,6 +522,9 @@ INDEXITERATOR_TYPE BPLUSTREE_TYPE::Begin(const KeyType &key) {
     auto leaf = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE *>(leaf_page->GetData());
     int index = leaf->KeyIndex(key, comparator_);
     auto page_id = leaf->GetPageId();
+    if(leaf->IsRootPage()){
+        UnlockRoot();
+    }
     leaf_page->RUnlatch();
     buffer_pool_manager_->UnpinPage(page_id, false);
     return INDEXITERATOR_TYPE(page_id, index, buffer_pool_manager_);

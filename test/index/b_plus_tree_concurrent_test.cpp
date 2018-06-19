@@ -17,7 +17,7 @@
 
 namespace cmudb {
 // helper function to launch multiple threads
-template <typename... Args>
+template<typename... Args>
 void LaunchParallelTest(uint64_t num_threads, Args &&... args) {
   std::vector<std::thread> thread_group;
 
@@ -42,8 +42,9 @@ void InsertHelper(BPlusTree<GenericKey<8>, RID, GenericComparator<8>> &tree,
   Transaction *transaction = new Transaction(0);
   for (auto key : keys) {
     int64_t value = key & 0xFFFFFFFF;
-    rid.Set((int32_t)(key >> 32), value);
+    rid.Set((int32_t) (key >> 32), value);
     index_key.SetFromInteger(key);
+//    std::cout << "th:" << thread_itr << " value:" << key << std::endl;
     tree.Insert(index_key, rid, transaction);
   }
   delete transaction;
@@ -59,9 +60,9 @@ void InsertHelperSplit(
   // create transaction
   Transaction *transaction = new Transaction(0);
   for (auto key : keys) {
-    if ((uint64_t)key % total_threads == thread_itr) {
+    if ((uint64_t) key % total_threads == thread_itr) {
       int64_t value = key & 0xFFFFFFFF;
-      rid.Set((int32_t)(key >> 32), value);
+      rid.Set((int32_t) (key >> 32), value);
       index_key.SetFromInteger(key);
       tree.Insert(index_key, rid, transaction);
     }
@@ -92,7 +93,7 @@ void DeleteHelperSplit(
   // create transaction
   Transaction *transaction = new Transaction(0);
   for (auto key : remove_keys) {
-    if ((uint64_t)key % total_threads == thread_itr) {
+    if ((uint64_t) key % total_threads == thread_itr) {
       index_key.SetFromInteger(key);
       tree.Remove(index_key, transaction);
     }
@@ -113,7 +114,7 @@ TEST(BPlusTreeConcurrentTest, InsertTest1) {
   // create and fetch header_page
   page_id_t page_id;
   auto header_page = bpm->NewPage(page_id);
-  (void)header_page;
+  (void) header_page;
   // keys to Insert
   std::vector<int64_t> keys;
   int64_t scale_factor = 100;
@@ -137,6 +138,7 @@ TEST(BPlusTreeConcurrentTest, InsertTest1) {
   int64_t start_key = 1;
   int64_t current_key = start_key;
   index_key.SetFromInteger(start_key);
+//  std::cout<<tree.ToString(true)<<std::endl;
   for (auto iterator = tree.Begin(index_key); iterator.isEnd() == false;
        ++iterator) {
     auto location = (*iterator).second;
@@ -167,7 +169,7 @@ TEST(BPlusTreeConcurrentTest, InsertTest2) {
   // create and fetch header_page
   page_id_t page_id;
   auto header_page = bpm->NewPage(page_id);
-  (void)header_page;
+  (void) header_page;
   // keys to Insert
   std::vector<int64_t> keys;
   int64_t scale_factor = 100;
@@ -224,7 +226,7 @@ TEST(BPlusTreeConcurrentTest, DeleteTest1) {
   // create and fetch header_page
   page_id_t page_id;
   auto header_page = bpm->NewPage(page_id);
-  (void)header_page;
+  (void) header_page;
   // sequential insert
   std::vector<int64_t> keys = {1, 2, 3, 4, 5};
   InsertHelper(tree, keys);
@@ -270,7 +272,7 @@ TEST(BPlusTreeConcurrentTest, DeleteTest2) {
   // create and fetch header_page
   page_id_t page_id;
   auto header_page = bpm->NewPage(page_id);
-  (void)header_page;
+  (void) header_page;
 
   // sequential insert
   std::vector<int64_t> keys = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
@@ -317,7 +319,7 @@ TEST(BPlusTreeConcurrentTest, MixTest) {
   // create and fetch header_page
   page_id_t page_id;
   auto header_page = bpm->NewPage(page_id);
-  (void)header_page;
+  (void) header_page;
   // first, populate index
   std::vector<int64_t> keys = {1, 2, 3, 4, 5};
   InsertHelper(tree, keys);

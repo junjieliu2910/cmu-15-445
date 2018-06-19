@@ -14,6 +14,7 @@
 #include <condition_variable>
 
 #include "common/rid.h"
+#include "common/logger.h"
 #include "concurrency/transaction.h"
 
 namespace cmudb {
@@ -38,7 +39,7 @@ class LockList {
     }
 
     inline bool IsEmpty(){return list_.empty();}
-    inline bool GetOldest(){return oldest_;}
+    inline txn_id_t GetOldest(){return oldest_;}
     inline std::list<LockItem>::iterator Begin(){return list_.begin();}
 
     void Add(txn_id_t id, LockMode mode, bool status){
