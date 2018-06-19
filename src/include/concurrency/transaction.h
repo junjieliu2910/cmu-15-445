@@ -76,6 +76,7 @@ public:
   inline std::shared_ptr<std::deque<Page *>> GetPageSet() { return page_set_; }
 
   inline void AddIntoPageSet(Page *page) { page_set_->push_back(page); }
+  inline void PushFrontPageSet(Page *page){page_set_->push_front(page); }
 
   inline std::shared_ptr<std::unordered_set<page_id_t>> GetDeletedPageSet() {
     return deleted_page_set_;
