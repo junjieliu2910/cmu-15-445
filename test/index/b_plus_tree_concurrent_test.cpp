@@ -17,7 +17,7 @@
 
 namespace cmudb {
 // helper function to launch multiple threads
-template<typename... Args>
+template <typename... Args>
 void LaunchParallelTest(uint64_t num_threads, Args &&... args) {
   std::vector<std::thread> thread_group;
 
@@ -44,13 +44,12 @@ void InsertHelper(BPlusTree<GenericKey<8>, RID, GenericComparator<8>> &tree,
     int64_t value = key & 0xFFFFFFFF;
     rid.Set((int32_t) (key >> 32), value);
     index_key.SetFromInteger(key);
-//    std::cout << "th:" << thread_itr << " value:" << key << std::endl;
     tree.Insert(index_key, rid, transaction);
   }
   delete transaction;
 }
 
-// helper function to seperate insert
+// helper function to separate insert
 void InsertHelperSplit(
     BPlusTree<GenericKey<8>, RID, GenericComparator<8>> &tree,
     const std::vector<int64_t> &keys, int total_threads,
@@ -60,7 +59,7 @@ void InsertHelperSplit(
   // create transaction
   Transaction *transaction = new Transaction(0);
   for (auto key : keys) {
-    if ((uint64_t) key % total_threads == thread_itr) {
+    if ((uint64_t) key%total_threads == thread_itr) {
       int64_t value = key & 0xFFFFFFFF;
       rid.Set((int32_t) (key >> 32), value);
       index_key.SetFromInteger(key);
@@ -93,7 +92,7 @@ void DeleteHelperSplit(
   // create transaction
   Transaction *transaction = new Transaction(0);
   for (auto key : remove_keys) {
-    if ((uint64_t) key % total_threads == thread_itr) {
+    if ((uint64_t) key%total_threads == thread_itr) {
       index_key.SetFromInteger(key);
       tree.Remove(index_key, transaction);
     }
@@ -123,6 +122,8 @@ TEST(BPlusTreeConcurrentTest, InsertTest1) {
   }
   LaunchParallelTest(2, InsertHelper, std::ref(tree), keys);
 
+  //std::cerr << tree.ToString(false) << std::endl;
+
   std::vector<RID> rids;
   GenericKey<8> index_key;
   for (auto key : keys) {
@@ -138,7 +139,6 @@ TEST(BPlusTreeConcurrentTest, InsertTest1) {
   int64_t start_key = 1;
   int64_t current_key = start_key;
   index_key.SetFromInteger(start_key);
-//  std::cout<<tree.ToString(true)<<std::endl;
   for (auto iterator = tree.Begin(index_key); iterator.isEnd() == false;
        ++iterator) {
     auto location = (*iterator).second;
@@ -342,6 +342,72 @@ TEST(BPlusTreeConcurrentTest, MixTest) {
   }
 
   EXPECT_EQ(size, 5);
+
+  bpm->UnpinPage(HEADER_PAGE_ID, true);
+  delete disk_manager;
+  delete bpm;
+  remove("test.db");
+  remove("test.log");
+}
+
+TEST(BPlusTreeConcurrentTest, MixTest2) {
+  // create KeyComparator and index schema
+  Schema *key_schema = ParseCreateStatement("a bigint");
+  GenericComparator<8> comparator(key_schema);
+
+  DiskManager *disk_manager = new DiskManager("test.db");
+  BufferPoolManager *bpm = new BufferPoolManager(50, disk_manager);
+  // create b+ tree
+  BPlusTree<GenericKey<8>, RID, GenericComparator<8>> tree("foo_pk", bpm,
+                                                           comparator);
+  GenericKey<8> index_key;
+  RID rid;
+
+  // create and fetch header_page
+  page_id_t page_id;
+  auto header_page = bpm->NewPage(page_id);
+  (void) header_page;
+  // first, populate index
+  std::vector<int64_t> keys, all_deleted;
+  for (int i = 1; i <= 100; ++i) {
+    all_deleted.push_back(i);
+    keys.push_back(i + 100);
+  }
+  // keys1: 0,2,4...
+  // keys2: 1,3,5...
+  // keys: 100 ~ 200
+
+  // concurrent insert
+  LaunchParallelTest(4, InsertHelperSplit, std::ref(tree), std::ref(all_deleted), 4);
+
+  // concurrent insert and delete
+  std::thread t0(InsertHelper, std::ref(tree), keys, 0);
+  LaunchParallelTest(4, DeleteHelperSplit, std::ref(tree), std::ref(all_deleted), 4);
+
+  t0.join();
+
+  std::vector<RID> rids;
+  for (auto key : all_deleted) {
+    rids.clear();
+    index_key.SetFromInteger(key);
+    auto res = tree.GetValue(index_key, rids);
+    EXPECT_EQ(rids.size(), 0);
+    EXPECT_EQ(false, res);
+  }
+
+  int64_t current_key = 101;
+  int64_t size = 0;
+  index_key.SetFromInteger(current_key);
+  for (auto iterator = tree.Begin(index_key); iterator.isEnd() == false;
+       ++iterator) {
+    auto location = (*iterator).second;
+    EXPECT_EQ(location.GetPageId(), 0);
+    EXPECT_EQ(location.GetSlotNum(), current_key);
+    current_key = current_key + 1;
+    size = size + 1;
+  }
+
+  EXPECT_EQ(size, 100);
 
   bpm->UnpinPage(HEADER_PAGE_ID, true);
   delete disk_manager;
