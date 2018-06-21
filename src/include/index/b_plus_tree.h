@@ -66,6 +66,8 @@ private:
   void LockPage(Page* page, Transaction* txn, Operation op);
   void UnlockPage(Page* page, Transaction* txn, Operation op);
   void UnlockParentPage(Page* page, Transaction* txn, Operation op);
+  void UnlockAllPage(Transaction* txn, Operation op);
+
 
   Page *FindLeafPage(const KeyType &key,
                     bool leftMost = false, 

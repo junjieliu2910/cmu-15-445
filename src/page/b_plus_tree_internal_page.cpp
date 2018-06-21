@@ -217,7 +217,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(
     // Update the parent page id of the child
     for(int i = 0; i < size; ++i){
         auto page = buffer_pool_manager->FetchPage(array[i].second);
-        assert(page != nullptr && page->GetPinCount() == 1);
+        assert(page != nullptr);
         auto node = reinterpret_cast<BPlusTreePage *>(page->GetData());
         node->SetParentPageId(recipient->GetPageId());
         buffer_pool_manager->UnpinPage(page->GetPageId(), true);
