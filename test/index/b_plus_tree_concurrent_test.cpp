@@ -120,7 +120,7 @@ TEST(BPlusTreeConcurrentTest, InsertTest1) {
   for (int64_t key = 1; key < scale_factor; key++) {
     keys.push_back(key);
   }
-  LaunchParallelTest(2, InsertHelper, std::ref(tree), keys);
+  LaunchParallelTest(4, InsertHelper, std::ref(tree), keys);
 
   //std::cerr << tree.ToString(false) << std::endl;
 
@@ -177,6 +177,8 @@ TEST(BPlusTreeConcurrentTest, InsertTest2) {
     keys.push_back(key);
   }
   LaunchParallelTest(2, InsertHelperSplit, std::ref(tree), keys, 2);
+
+  //std::cerr << tree.ToString(false) << std::endl;
 
   std::vector<RID> rids;
   GenericKey<8> index_key;
