@@ -16,7 +16,9 @@ void LogManager::RunFlushThread() {
   // If ENABLE_LOGGING already set, no need to set up background thread again
   if(!ENABLE_LOGGING){
     ENABLE_LOGGING = true;
-    
+    std::unique_lock<std::mutex> locker(latch_);
+    // wait for timeout for log buffer is full
+    //cv_.wait_for(locker, LOG_TIMEOUT, )
   }
 }
 /*

@@ -78,22 +78,7 @@ bool BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value,
     //     }
     // }
     // Better solution than locker 
-    std::call_once(flag_, [&](){
-        assert(IsEmpty());
-        auto page = buffer_pool_manager_->NewPage(root_page_id_);
-        if(page == nullptr){
-            throw Exception(EXCEPTION_TYPE_INDEX, "Out of memory");
-        }
-        LockPage(page, transaction, Operation::INSERT);
-        auto root = reinterpret_cast<B_PLUS_TREE_LEAF_PAGE_TYPE *>(page->GetData());
-        UpdateRootPageId(true);
-        root->Init(root_page_id_, INVALID_PAGE_ID);
-        assert(!IsEmpty());
-        root->Insert(key, value, comparator_);
-        page->WUnlatch();
-        buffer_pool_manager_->UnpinPage(page->GetPageId(), true);
-        transaction->GetPageSet()->pop_front();
-    });
+    std::call_once(flag_, &BPLUSTREE_TYPE::StartNewTree, this, key, value, transaction);
 
     return InsertIntoLeaf(key, value, transaction);
 }
