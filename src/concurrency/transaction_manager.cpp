@@ -13,6 +13,7 @@ Transaction *TransactionManager::Begin() {
 
   if (ENABLE_LOGGING) {
     // TODO: write log and update transaction's prev_lsn here
+    
   }
 
   return txn;

@@ -111,7 +111,8 @@ private:
   int split_count_; // Count split 
 
   std::mutex root_mutex_; //mutex for root page id
-  //bool root_wlocked_; // whether the root is Write locked 
+  
+  std::once_flag flag_; //Start new tree
 };
 
 } // namespace cmudb

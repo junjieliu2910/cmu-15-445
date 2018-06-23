@@ -19,7 +19,7 @@ namespace cmudb {
 class LogManager {
 public:
   LogManager(DiskManager *disk_manager)
-      : next_lsn_(0), persistent_lsn_(INVALID_LSN),
+      : next_lsn_(0), persistent_lsn_(INVALID_LSN), 
         disk_manager_(disk_manager) {
     // TODO: you may intialize your own defined memeber variables here
     log_buffer_ = new char[LOG_BUFFER_SIZE];
@@ -47,6 +47,9 @@ public:
 private:
   // TODO: you may add your own member variables
   // also remember to change constructor accordingly
+
+  // Indicate whether the flush thread is running n
+  bool isFlushing;
 
   // atomic counter, record the next log sequence number
   std::atomic<lsn_t> next_lsn_;

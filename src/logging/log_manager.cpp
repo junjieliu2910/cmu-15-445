@@ -12,11 +12,21 @@ namespace cmudb {
  * manager wants to force flush (it only happens when the flushed page has a
  * larger LSN than persistent LSN)
  */
-void LogManager::RunFlushThread() {}
+void LogManager::RunFlushThread() {
+  // If ENABLE_LOGGING already set, no need to set up background thread again
+  if(!ENABLE_LOGGING){
+    ENABLE_LOGGING = true;
+    
+  }
+}
 /*
  * Stop and join the flush thread, set ENABLE_LOGGING = false
  */
-void LogManager::StopFlushThread() {}
+void LogManager::StopFlushThread() {
+  if(ENABLE_LOGGING){
+
+  }
+}
 
 /*
  * append a log record into log buffer
