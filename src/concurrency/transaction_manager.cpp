@@ -13,7 +13,8 @@ Transaction *TransactionManager::Begin() {
 
   if (ENABLE_LOGGING) {
     // TODO: write log and update transaction's prev_lsn here
-    
+    LogRecord record(txn->GetTransactionId(), txn->GetPrevLSN(), LogRecordType::BEGIN);
+    txn->SetPrevLSN(log_manager_->AppendLogRecord(record));
   }
 
   return txn;
@@ -36,6 +37,13 @@ void TransactionManager::Commit(Transaction *txn) {
 
   if (ENABLE_LOGGING) {
     // TODO: write log and update transaction's prev_lsn here
+    LogRecord record(txn->GetTransactionId(), txn->GetPrevLSN(), LogRecordType::COMMIT);
+    auto commit_lsn = log_manager_->AppendLogRecord(record);
+    // make sure the commit record is flushed to disk
+    while(log_manager_->GetPersistentLSN() < commit_lsn){
+      // Still try to find better solution 
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
   }
 
   // release all the lock
@@ -73,6 +81,13 @@ void TransactionManager::Abort(Transaction *txn) {
 
   if (ENABLE_LOGGING) {
     // TODO: write log and update transaction's prev_lsn here
+    LogRecord record(txn->GetTransactionId(), txn->GetPrevLSN(), LogRecordType::ABORT);
+    auto commit_lsn = log_manager_->AppendLogRecord(record);
+    // make sure the commit record is flushed to disk
+    while(log_manager_->GetPersistentLSN() < commit_lsn){
+      // Still try to find better solution 
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
   }
 
   // release all the lock

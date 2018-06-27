@@ -73,6 +73,10 @@ Page *BufferPoolManager::FetchPage(page_id_t page_id) {
     }
     assert(page->pin_count_ == 0);
     if (page->is_dirty_) {
+      if(page->GetLSN() > log_manager_->GetPersistentLSN()){
+        // force the log manager to flush
+      }
+
       disk_manager_->WritePage(page->GetPageId(), page->GetData());
       page->is_dirty_ = false;
     }
@@ -195,6 +199,11 @@ Page *BufferPoolManager::NewPage(page_id_t &page_id) {
     }
     assert(page->pin_count_ == 0);
     if (page->is_dirty_) {
+      if(page->GetLSN() > log_manager_->GetPersistentLSN()){
+        // force the log manager to flush, and wait untill finish
+        log_manager_->ForceFlush();
+      }
+
       disk_manager_->WritePage(page->GetPageId(), page->GetData());
       page->is_dirty_ = false;
     }
@@ -208,6 +217,8 @@ Page *BufferPoolManager::NewPage(page_id_t &page_id) {
   page->is_dirty_ = true;
   pin_page(page);
   assert(page->pin_count_ == 1);
+
+
   return page;
 }
 } // namespace cmudb

@@ -102,6 +102,7 @@ public:
 
   inline void SetPrevLSN(lsn_t prev_lsn) { prev_lsn_ = prev_lsn; }
 
+
 private:
   TransactionState state_;
   // thread id, single-threaded transactions

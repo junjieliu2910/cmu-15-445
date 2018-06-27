@@ -13,14 +13,17 @@
 
 #include "disk/disk_manager.h"
 #include "logging/log_record.h"
+#include "common/logger.h"
 
 namespace cmudb {
 
 class LogManager {
 public:
   LogManager(DiskManager *disk_manager)
-      : next_lsn_(0), persistent_lsn_(INVALID_LSN), 
-        disk_manager_(disk_manager) {
+      : allow_to_flush_(false), offset_(0),
+      persistent_lsn_changed_(false),
+      next_lsn_(0), persistent_lsn_(INVALID_LSN), 
+      disk_manager_(disk_manager){
     // TODO: you may intialize your own defined memeber variables here
     log_buffer_ = new char[LOG_BUFFER_SIZE];
     flush_buffer_ = new char[LOG_BUFFER_SIZE];
@@ -41,16 +44,29 @@ public:
 
   // get/set helper functions
   inline lsn_t GetPersistentLSN() { return persistent_lsn_; }
-  inline void SetPersistentLSN(lsn_t lsn) { persistent_lsn_ = lsn; }
+  inline void SetPersistentLSN(lsn_t lsn) { 
+    persistent_lsn_ = lsn; 
+    persistent_lsn_changed_ = true;
+  }
   inline char *GetLogBuffer() { return log_buffer_; }
+
+  inline void SwapBuffer(){
+    char* tmp = flush_buffer_;
+    flush_buffer_ = log_buffer_;
+    log_buffer_ = tmp;
+    offset_ = 0;
+  }
+
+  void ForceFlush();
+
 
 private:
   // TODO: you may add your own member variables
   // also remember to change constructor accordingly
-
-  // Indicate whether the flush thread is running n
-  bool isFlushing;
-
+  bool allow_to_flush_;
+  int offset_;
+  std::atomic<bool> persistent_lsn_changed_;
+  
   // atomic counter, record the next log sequence number
   std::atomic<lsn_t> next_lsn_;
   // log records before & include persistent_lsn_ have been written to disk

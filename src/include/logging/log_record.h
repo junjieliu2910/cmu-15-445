@@ -108,6 +108,7 @@ public:
   inline Tuple &GetInserteTuple() { return insert_tuple_; }
 
   inline RID &GetInsertRID() { return insert_rid_; }
+  
 
   inline page_id_t GetNewPageRecord() { return prev_page_id_; }
 

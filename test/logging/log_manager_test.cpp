@@ -21,6 +21,7 @@ TEST(LogManagerTest, BasicLogging) {
 
   LOG_DEBUG("Create a test table");
   Transaction *txn = storage_engine->transaction_manager_->Begin();
+  LOG_INFO("transaction manager start");
   TableHeap *test_table = new TableHeap(storage_engine->buffer_pool_manager_,
                                         storage_engine->lock_manager_,
                                         storage_engine->log_manager_, txn);
@@ -88,9 +89,9 @@ TEST(LogManagerTest, RedoTestWithOneTxn) {
   auto val = tuple.GetValue(schema, 4);
   EXPECT_TRUE(test_table->InsertTuple(tuple, rid, txn));
   storage_engine->transaction_manager_->Commit(txn);
+  LOG_DEBUG("Commit txn");
   delete txn;
   delete test_table;
-  LOG_DEBUG("Commit txn");
 
   LOG_DEBUG("SLEEPING for 2s");
   std::this_thread::sleep_for(std::chrono::seconds(2));
@@ -99,11 +100,14 @@ TEST(LogManagerTest, RedoTestWithOneTxn) {
   delete storage_engine;
 
   // restart system
+  LOG_DEBUG("Restart system");
   storage_engine = new StorageEngine("test.db");
   LogRecovery *log_recovery = new LogRecovery(
       storage_engine->disk_manager_, storage_engine->buffer_pool_manager_);
 
+  LOG_DEBUG("System redo");
   log_recovery->Redo();
+  LOG_DEBUG("System undo");
   log_recovery->Undo();
 
   Tuple old_tuple;

@@ -16,6 +16,10 @@ void TablePage::Init(page_id_t page_id, size_t page_size,
   memcpy(GetData(), &page_id, 4); // set page_id
   if (ENABLE_LOGGING) {
     // TODO: add your logging logic here
+    LogRecord record(txn->GetTransactionId(), txn->GetPrevLSN(), LogRecordType::NEWPAGE, page_id);
+    auto current_lsn = log_manager->AppendLogRecord(record);
+    SetLSN(current_lsn);
+    txn->SetPrevLSN(current_lsn);
   }
   SetPrevPageId(prev_page_id);
   SetNextPageId(INVALID_PAGE_ID);
@@ -88,6 +92,12 @@ bool TablePage::InsertTuple(const Tuple &tuple, RID &rid, Transaction *txn,
     // acquire the exclusive lock
     assert(lock_manager->LockExclusive(txn, rid.Get()));
     // TODO: add your logging logic here
+    LogRecord record(txn->GetTransactionId(), txn->GetPrevLSN(),
+                  LogRecordType::INSERT, rid, tuple);
+    auto lsn = log_manager->AppendLogRecord(record);
+    txn->SetPrevLSN(lsn);
+    SetLSN(lsn);
+    //LOG_INFO("Insert tuple, lsn: %d", lsn);
   }
   // LOG_DEBUG("Tuple inserted");
   return true;
@@ -128,7 +138,14 @@ bool TablePage::MarkDelete(const RID &rid, Transaction *txn,
                !lock_manager->LockExclusive(txn, rid)) { // no shared lock
       return false;
     }
-    // TODO: add your logging logic here
+    // TODO: add your logging logic here 
+    Tuple tmp;
+    assert(GetTuple(rid, tmp, txn, lock_manager));
+    LogRecord record(txn->GetTransactionId(), txn->GetPrevLSN(),
+                     LogRecordType::MARKDELETE, rid, tmp);
+    auto lsn = log_manager->AppendLogRecord(record);
+    txn->SetPrevLSN(lsn);
+    SetLSN(lsn);
   }
 
   // set tuple size to negative value
@@ -183,6 +200,13 @@ bool TablePage::UpdateTuple(const Tuple &new_tuple, Tuple &old_tuple,
       return false;
     }
     // TODO: add your logging logic here
+
+    LogRecord record(txn->GetTransactionId(), txn->GetPrevLSN(),
+                     LogRecordType::UPDATE, rid, old_tuple, new_tuple);
+
+    auto lsn = log_manager->AppendLogRecord(record);
+    txn->SetPrevLSN(lsn);
+    SetLSN(lsn);
   }
 
   // update
@@ -235,6 +259,11 @@ void TablePage::ApplyDelete(const RID &rid, Transaction *txn,
     assert(txn->GetExclusiveLockSet()->find(rid) !=
            txn->GetExclusiveLockSet()->end());
     // TODO: add your logging logic here
+    LogRecord record(txn->GetTransactionId(), txn->GetPrevLSN(),
+                     LogRecordType::APPLYDELETE, rid, delete_tuple);
+    auto lsn = log_manager->AppendLogRecord(record);
+    txn->SetPrevLSN(lsn);
+    SetLSN(lsn);
   }
 
   int32_t free_space_pointer =
@@ -261,17 +290,31 @@ void TablePage::ApplyDelete(const RID &rid, Transaction *txn,
  */
 void TablePage::RollbackDelete(const RID &rid, Transaction *txn,
                                LogManager *log_manager) {
+  int slot_num = rid.GetSlotNum();
+  assert(slot_num < GetTupleCount());
+  int32_t tuple_size = GetTupleSize(slot_num);
+  
   if (ENABLE_LOGGING) {
     // must have already grab the exclusive lock
     assert(txn->GetExclusiveLockSet()->find(rid) !=
            txn->GetExclusiveLockSet()->end());
 
     // TODO: add your logging logic here
+    auto tuple_offset = GetTupleOffset(slot_num);
+    Tuple tuple;
+    tuple.size_ = -tuple_size;
+    tuple.data_ = new char[tuple.size_];
+    memcpy(tuple.data_, GetData() + tuple_offset, tuple.size_);
+    tuple.rid_ = rid;
+    tuple.allocated_ = true;
+    
+    LogRecord record(txn->GetTransactionId(), txn->GetPrevLSN(),
+                     LogRecordType::ROLLBACKDELETE, rid, tuple);
+    auto lsn = log_manager->AppendLogRecord(record);
+    txn->SetPrevLSN(lsn);
+    SetLSN(lsn);
   }
 
-  int slot_num = rid.GetSlotNum();
-  assert(slot_num < GetTupleCount());
-  int32_t tuple_size = GetTupleSize(slot_num);
 
   // set tuple size to positive value
   if (tuple_size < 0)
