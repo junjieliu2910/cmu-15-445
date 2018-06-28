@@ -69,15 +69,15 @@ bool LogRecovery::DeserializeLogRecord(const char *data,
  *lsn_mapping_ table
  */
 void LogRecovery::Redo() {
-  if(!ENABLE_LOGGING){
-    return;
-  }
+  
   while(disk_manager_->ReadLog(log_buffer_, LOG_BUFFER_SIZE, offset_)){
+
     LogRecord record; 
     int buffer_offset = 0;
     while(DeserializeLogRecord(log_buffer_ + buffer_offset, record)){
       lsn_mapping_[record.GetLSN()] = offset_ + buffer_offset;
       buffer_offset += record.GetSize();
+
 
       switch(record.GetLogRecordType()){
         case LogRecordType::BEGIN :
@@ -178,6 +178,9 @@ void LogRecovery::Undo() {
       //undo untill the begin
       assert(disk_manager_->ReadLog(log_buffer_, LOG_BUFFER_SIZE, last_lsn_offset));
       assert(DeserializeLogRecord(log_buffer_, record));
+
+      LOG_INFO("Undo: %s", record.ToString().c_str());
+
       auto log_type = record.GetLogRecordType();
       if(log_type == LogRecordType::BEGIN){
         break;
