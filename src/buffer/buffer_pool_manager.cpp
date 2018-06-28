@@ -73,7 +73,7 @@ Page *BufferPoolManager::FetchPage(page_id_t page_id) {
     }
     assert(page->pin_count_ == 0);
     if (page->is_dirty_) {
-      if(page->GetLSN() > log_manager_->GetPersistentLSN()){
+      if(ENABLE_LOGGING && page->GetLSN() > log_manager_->GetPersistentLSN()){
         // force the log manager to flush
       }
 
@@ -199,7 +199,7 @@ Page *BufferPoolManager::NewPage(page_id_t &page_id) {
     }
     assert(page->pin_count_ == 0);
     if (page->is_dirty_) {
-      if(page->GetLSN() > log_manager_->GetPersistentLSN()){
+      if(ENABLE_LOGGING && page->GetLSN() > log_manager_->GetPersistentLSN()){
         // force the log manager to flush, and wait untill finish
         log_manager_->ForceFlush();
       }
